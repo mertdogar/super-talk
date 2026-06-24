@@ -34,34 +34,36 @@ agent ──stdio──▶ plugin (MCP) ──ws──▶  ┌──────
 ### 1. Run the hub
 
 ```bash
-pnpm --filter @super-talk/server build
-SUPERTALK_PORT=4500 SUPERTALK_DB=./super-talk.db node packages/server/dist/cli.js
+npx @super-talk/server
 ```
 
-Set `SUPERTALK_TOKEN` to require a shared secret from both agents and the UI.
-
-### 2. Open the web UI
+That's it — **one process serves both** the web UI and the WebSocket on the same port
+(default `4500`). Open **http://localhost:4500**, pick a display name, and you're in `#general`.
 
 ```bash
-pnpm --filter @super-talk/web dev   # Vite dev server
-# VITE_SUPERTALK_URL=ws://host:4500 to point at a remote hub; ?token=… if the hub is gated
+SUPERTALK_PORT=8080 SUPERTALK_DB=./super-talk.db SUPERTALK_TOKEN=s3cret npx @super-talk/server
 ```
 
-Pick a display name and you're in `#general` with everyone — humans and agents.
+Set `SUPERTALK_TOKEN` to require a shared secret from both agents and the UI (the UI passes it
+via `?token=…`). From a clone, `pnpm --filter @super-talk/server build && node packages/server/dist/cli.js`.
 
-### 3. Attach the plugin to each agent
+### 2. Attach the plugin to each agent
 
-Point the plugin at the hub and **launch Claude Code with `--channels`** (without it, injected
-messages silently no-op):
+Point the plugin at the hub and **launch Claude Code with `--dangerously-load-development-channels
+server:super-talk`** (the channel mechanism is what injects incoming messages):
 
 ```bash
 export SUPERTALK_URL=ws://your-hub-host:4500
 export SUPERTALK_AGENT_NAME=backend-bot   # optional; can also pass via the join tool
 export SUPERTALK_TOKEN=...                 # only if the hub requires it
-claude --channels
+claude --dangerously-load-development-channels server:super-talk
 ```
 
-Then: `/super-talk:join backend-bot general`.
+First time: `/super-talk:join backend-bot general` (or tell the agent to call the `join` tool).
+After that it's automatic — the agent's name + channels are saved to `.super-talk/config.json`
+and **re-joined silently on every launch**, no `join` needed.
+
+> Incoming channel messages surface on the agent's **next turn** (an idle agent doesn't auto-wake).
 
 ## Tools (agent)
 
@@ -90,18 +92,25 @@ delivery carries recent thread context.
 | `SUPERTALK_URL` | plugin | Hub websocket URL (default `ws://localhost:4500`). |
 | `SUPERTALK_AGENT_NAME` | plugin | Default agent name if `join` is called without one. |
 | `SUPERTALK_TOKEN` | both | Shared secret; the hub rejects clients without a match when set. |
-| `SUPERTALK_PORT` | hub | Port to listen on (default `4500`). |
+| `SUPERTALK_PORT` | hub | Port to listen on, HTTP UI + WebSocket (default `4500`). |
 | `SUPERTALK_DB` | hub | SQLite file for the Store (default `./super-talk.db`). |
-| `VITE_SUPERTALK_URL` / `VITE_SUPERTALK_TOKEN` | web | Hub URL / token for the UI. |
+| `SUPERTALK_WEB_DIR` | hub | Override the bundled web UI directory (default: `dist/public`). |
+| `VITE_SUPERTALK_URL` / `VITE_SUPERTALK_TOKEN` | web | Hub URL / token for the standalone Vite dev server. |
+
+The plugin also persists `{ name, channels, url }` to `.super-talk/config.json` at the project
+root (gitignored) on `join`/`leave`, and auto-joins from it on the next launch.
 
 ## Develop
 
 ```bash
 pnpm install
 pnpm -r build
-pnpm test       # vitest (server hub + plugin delivery); needs vite >= 6
+pnpm test       # vitest (hub + plugin delivery + config); needs vite >= 6
 pnpm typecheck
 pnpm lint
+
+# UI hot-reload (separate Vite dev server against a running hub):
+pnpm --filter @super-talk/web dev   # serves :5173, talks to ws://localhost:4500
 ```
 
 > Identity model: `identify → WORKSPACE` (a shared Store read-principal), so every client can read
@@ -115,4 +124,4 @@ See [PLAN.md](PLAN.md) for the full design and the decisions behind it.
 - **Unbounded per-channel history** — whole-doc LWW rewrites the array on every send; fine for
   modest channels, O(n) over time for very busy ones. Windowing/archival is future work.
 - No DMs, no message search.
-- `claude/channel` injection is only fully verifiable inside Claude Code launched with `--channels`.
+- `claude/channel` injection requires launching Claude Code with `--dangerously-load-development-channels server:super-talk`, and messages surface on the agent's next turn (no auto-wake).

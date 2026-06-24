@@ -9,11 +9,13 @@ import {
 import { createSuperLineClient, type SuperLineClient } from "@super-line/client";
 import { webSocketClientTransport } from "@super-line/transport-websocket";
 import { api, type Delivery } from "@super-talk/core";
+import { readConfig, writeConfig } from "./config.js";
 import { channelNotificationFor } from "./delivery.js";
 
-const URL = process.env.SUPERTALK_URL || "ws://localhost:4500";
+const ENV_URL = process.env.SUPERTALK_URL || "";
 const ENV_NAME = process.env.SUPERTALK_AGENT_NAME || "";
 const TOKEN = process.env.SUPERTALK_TOKEN || "";
+const DEFAULT_URL = "ws://localhost:4500";
 
 const PRIMER = `You are connected to super-talk, shared channels where AI agents and humans collaborate.
 
@@ -38,6 +40,8 @@ const mcp = new Server(
 
 let client: SuperLineClient<typeof api, "agent"> | null = null;
 let selfName = "";
+let selfUrl = "";
+let joinedChannels: string[] = [];
 
 function deliver(d: Delivery) {
   const note = channelNotificationFor(d, selfName); // null when it's our own message (loop guard #2)
@@ -48,15 +52,23 @@ function deliver(d: Delivery) {
   });
 }
 
-async function connect(name: string, channels?: string[]) {
+function persist() {
+  writeConfig({ name: selfName, channels: joinedChannels, url: selfUrl });
+}
+
+async function connect(name: string, url: string, channels?: string[]) {
   selfName = name;
+  selfUrl = url;
   client = createSuperLineClient(api, {
-    transport: webSocketClientTransport({ url: URL }),
+    transport: webSocketClientTransport({ url }),
     role: "agent",
     params: { name, ...(TOKEN ? { token: TOKEN } : {}) },
   });
   client.on("message", deliver);
-  return client.join({ channels });
+  const res = await client.join({ channels });
+  joinedChannels = res.channels;
+  persist();
+  return res;
 }
 
 function requireClient(): SuperLineClient<typeof api, "agent"> {
@@ -152,11 +164,18 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
 async function runTool(name: string, args: Record<string, unknown>): Promise<unknown> {
   switch (name) {
     case "join": {
-      const agentName = (args.name as string) || ENV_NAME;
+      const saved = readConfig();
+      const agentName = (args.name as string) || ENV_NAME || saved?.name || "";
       if (!agentName) throw new Error("no name given and SUPERTALK_AGENT_NAME is not set");
       const channels = args.channels as string[] | undefined;
-      if (client) return client.join({ channels });
-      return connect(agentName, channels);
+      if (client) {
+        const res = await client.join({ channels });
+        joinedChannels = res.channels;
+        persist();
+        return res;
+      }
+      const url = ENV_URL || saved?.url || DEFAULT_URL;
+      return connect(agentName, url, channels);
     }
     case "send":
       return requireClient().send({
@@ -174,9 +193,14 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<unk
       });
     case "who":
       return requireClient().who({});
-    case "leave":
-      return requireClient().leave({ channel: args.channel as string | undefined });
+    case "leave": {
+      const res = await requireClient().leave({ channel: args.channel as string | undefined });
+      joinedChannels = res.channels;
+      persist();
+      return res;
+    }
     case "disconnect": {
+      // session-scoped: drop the connection but keep the config so next start auto-joins
       client?.close();
       client = null;
       selfName = "";
@@ -228,3 +252,15 @@ mcp.setRequestHandler(GetPromptRequestSchema, async (req) => {
 });
 
 await mcp.connect(new StdioServerTransport());
+
+// Auto-join: if a previous session saved a config, reconnect silently (no hello). Fire-and-forget
+// so startup never blocks; graceful on failure (hub down or name already taken) — the join tool
+// can still be used to (re)connect with another name.
+{
+  const saved = readConfig();
+  if (saved?.name) {
+    connect(saved.name, ENV_URL || saved.url || DEFAULT_URL, saved.channels).catch((err) => {
+      console.error(`[super-talk] auto-join failed: ${(err as Error).message}`);
+    });
+  }
+}

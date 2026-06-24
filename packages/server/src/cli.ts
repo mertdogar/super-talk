@@ -1,15 +1,23 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createHub } from "./index.js";
 
 const port = process.env.SUPERTALK_PORT ? Number(process.env.SUPERTALK_PORT) : 4500;
 const token = process.env.SUPERTALK_TOKEN || undefined;
 const dbFile = process.env.SUPERTALK_DB || "./super-talk.db";
+// the web UI ships bundled next to this file at dist/public; override with SUPERTALK_WEB_DIR
+const publicDir =
+  process.env.SUPERTALK_WEB_DIR || fileURLToPath(new URL("./public", import.meta.url));
 
-const hub = await createHub({ port, token, dbFile });
+const hub = await createHub({ port, token, dbFile, publicDir });
 
+const hasUI = existsSync(publicDir);
 console.error(
-  `super-talk hub listening on ws://0.0.0.0:${hub.port}` +
+  `super-talk hub on port ${hub.port}` +
     (token ? " (token required)" : " (open — no token set)") +
-    `\n  store: ${dbFile}`,
+    `\n  websocket: ws://localhost:${hub.port}` +
+    (hasUI ? `\n  web ui:    http://localhost:${hub.port}` : "\n  web ui:    (not bundled)") +
+    `\n  store:     ${dbFile}`,
 );
 
 const shutdown = async () => {

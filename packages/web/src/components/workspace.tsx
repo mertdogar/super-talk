@@ -6,7 +6,11 @@ import { chat } from '@/contract'
 import { Provider } from '@/lib/superline'
 import { Shell } from '@/components/shell'
 
-const WS_URL = import.meta.env.VITE_SUPERTALK_URL || `ws://${location.hostname}:4500`
+// default to the same origin that served this page (so the hub's bundled UI just works on any
+// host/port); override with VITE_SUPERTALK_URL for the standalone Vite dev server.
+const WS_URL =
+  import.meta.env.VITE_SUPERTALK_URL ||
+  `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`
 const TOKEN =
   import.meta.env.VITE_SUPERTALK_TOKEN ||
   new URLSearchParams(location.search).get('token') ||

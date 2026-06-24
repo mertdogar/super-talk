@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import http from "node:http";
 import { type ServerStore, SuperLineError } from "@super-line/core";
+import sirv from "sirv";
 import { type Conn, createSuperLineServer, type SuperLineServer } from "@super-line/server";
 import { webSocketServerTransport } from "@super-line/transport-websocket";
 import {
@@ -20,6 +22,8 @@ export interface HubOptions {
   store?: ServerStore;
   /** SQLite file for the default store. Defaults to `./super-talk.db`. Ignored if `store` is given. */
   dbFile?: string;
+  /** Directory of the built web UI to serve over HTTP. When unset/missing, runs WebSocket-only. */
+  publicDir?: string;
   /** Recent messages attached as thread context on each agent delivery. Defaults to 6. */
   threadContext?: number;
   /** Cooldown backstop: max sends to one channel per window before rejection. Defaults to 12. */
@@ -144,7 +148,22 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
     }
   };
 
-  const server = http.createServer();
+  // Serve the built web UI over HTTP on the same port as the WebSocket (separate `upgrade` event).
+  const serveUI =
+    opts.publicDir && existsSync(opts.publicDir)
+      ? sirv(opts.publicDir, { single: true, etag: true })
+      : null;
+  const server = http.createServer((req, res) => {
+    if (serveUI) {
+      serveUI(req, res, () => {
+        res.statusCode = 404;
+        res.end("Not found");
+      });
+    } else {
+      res.statusCode = 404;
+      res.end("super-talk hub (WebSocket only)");
+    }
+  });
 
   const srv = createSuperLineServer(api, {
     transports: [webSocketServerTransport({ server })],

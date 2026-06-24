@@ -11,6 +11,9 @@ dist/
 *.db-shm
 *.db-wal
 
+# super-talk per-developer runtime state (agent name, last channels)
+.super-talk/
+
 # Generated docs
 docs/.vitepress/cache/
 docs/.vitepress/.temp/
