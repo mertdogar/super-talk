@@ -1,17 +1,18 @@
-import { Hash, LogOut, MessageSquare } from 'lucide-react'
-import { CreateChannelDialog } from '@/components/create-channel-dialog'
-import type { Channel, MessagesDoc } from '@/contract'
-import { useResource } from '@/lib/superline'
-import { cn } from '@/lib/utils'
+import { Hash, LogOut, MessageSquare } from "lucide-react";
+import { CreateChannelDialog } from "@/components/create-channel-dialog";
+import type { Channel, MessagesDoc } from "@/contract";
+import { useResource } from "@/lib/superline";
+import { cn } from "@/lib/utils";
 
 interface SidebarProps {
-  me: string
-  online: string[]
-  channels: Channel[]
-  activeId: string
-  onSelect: (id: string) => void
-  lastRead: Record<string, number>
-  onSignOut: () => void
+  me: string;
+  online: string[];
+  channels: Channel[];
+  activeId: string;
+  onSelect: (id: string) => void;
+  lastRead: Record<string, number>;
+  onSignOut: () => void;
+  className?: string;
 }
 
 export function Sidebar({
@@ -22,9 +23,15 @@ export function Sidebar({
   onSelect,
   lastRead,
   onSignOut,
+  className,
 }: SidebarProps): React.JSX.Element {
   return (
-    <aside className="flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
+    <aside
+      className={cn(
+        "flex h-full w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground",
+        className,
+      )}
+    >
       <header className="flex items-center justify-between border-b border-sidebar-border px-4 py-3">
         <span className="flex items-center gap-2 text-lg font-bold">
           <MessageSquare className="h-5 w-5" />
@@ -34,7 +41,7 @@ export function Sidebar({
           onClick={onSignOut}
           title="Sign out"
           aria-label="Sign out"
-          className="grid h-7 w-7 place-items-center rounded text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          className="grid h-11 w-11 place-items-center rounded text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground md:h-7 md:w-7"
         >
           <LogOut className="h-4 w-4" />
         </button>
@@ -69,16 +76,16 @@ export function Sidebar({
           {online.map((u) => (
             <li key={u} className="flex items-center gap-2 text-sm">
               <span className="h-2 w-2 rounded-full bg-online shadow-[0_0_0_2px_var(--sidebar)]" />
-              <span className={cn('truncate', u === me ? 'font-semibold' : 'text-sidebar-muted')}>
+              <span className={cn("truncate", u === me ? "font-semibold" : "text-sidebar-muted")}>
                 {u}
-                {u === me && ' (you)'}
+                {u === me && " (you)"}
               </span>
             </li>
           ))}
         </ul>
       </div>
     </aside>
-  )
+  );
 }
 
 function ChannelRow({
@@ -88,29 +95,29 @@ function ChannelRow({
   lastReadAt,
   onSelect,
 }: {
-  channel: Channel
-  me: string
-  active: boolean
-  lastReadAt: number
-  onSelect: (id: string) => void
+  channel: Channel;
+  me: string;
+  active: boolean;
+  lastReadAt: number;
+  onSelect: (id: string) => void;
 }): React.JSX.Element {
   // Each row subscribes to its own channel's messages — so unread counts stay live across the whole
   // sidebar, derived purely from the synced Resource (no server-side read state).
-  const { data } = useResource<MessagesDoc>('chat', `messages:${channel.id}`)
-  const items = data?.items ?? []
-  const unread = active ? 0 : items.filter((m) => m.at > lastReadAt && m.from !== me).length
-  const hasUnread = unread > 0
+  const { data } = useResource<MessagesDoc>("chat", `messages:${channel.id}`);
+  const items = data?.items ?? [];
+  const unread = active ? 0 : items.filter((m) => m.at > lastReadAt && m.from !== me).length;
+  const hasUnread = unread > 0;
 
   return (
     <button
       onClick={() => onSelect(channel.id)}
       className={cn(
-        'flex w-full items-center gap-2 rounded px-2 py-1 text-[15px]',
+        "flex w-full items-center gap-2 rounded px-2 py-1 text-[15px]",
         active
-          ? 'bg-sidebar-active text-sidebar-active-foreground'
+          ? "bg-sidebar-active text-sidebar-active-foreground"
           : hasUnread
-            ? 'font-semibold text-sidebar-foreground hover:bg-sidebar-accent'
-            : 'text-sidebar-muted hover:bg-sidebar-accent',
+            ? "font-semibold text-sidebar-foreground hover:bg-sidebar-accent"
+            : "text-sidebar-muted hover:bg-sidebar-accent",
       )}
     >
       <Hash className="h-4 w-4 shrink-0 opacity-70" />
@@ -121,5 +128,5 @@ function ChannelRow({
         </span>
       )}
     </button>
-  )
+  );
 }

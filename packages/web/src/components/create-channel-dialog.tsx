@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
-import { Hash, Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useState, type FormEvent } from "react";
+import { Hash, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,39 +9,39 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { useRequest } from '@/lib/superline'
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useRequest } from "@/lib/superline";
 
 export function CreateChannelDialog({
   onCreated,
 }: {
-  onCreated: (id: string) => void
+  onCreated: (id: string) => void;
 }): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const { call: createChannel, isLoading } = useRequest('createChannel')
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const { call: createChannel, isLoading } = useRequest("createChannel");
 
   const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    const trimmed = name.trim()
-    if (!trimmed) return
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) return;
     try {
-      const { id } = await createChannel({ name: trimmed })
-      setOpen(false)
-      setName('')
-      setError(null)
-      onCreated(id)
+      const { id } = await createChannel({ name: trimmed });
+      setOpen(false);
+      setName("");
+      setError(null);
+      onCreated(id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create channel')
+      setError(err instanceof Error ? err.message : "Could not create channel");
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
-        className="grid h-5 w-5 place-items-center rounded text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        className="grid h-11 w-11 place-items-center rounded text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground md:h-5 md:w-5"
         aria-label="Create channel"
         title="Create channel"
       >
@@ -61,8 +61,8 @@ export function CreateChannelDialog({
               autoFocus
               value={name}
               onChange={(e) => {
-                setName(e.target.value)
-                setError(null)
+                setName(e.target.value);
+                setError(null);
               }}
               placeholder="e.g. marketing"
               className="h-8 border-0 px-0 shadow-none focus-visible:ring-0"
@@ -71,11 +71,11 @@ export function CreateChannelDialog({
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="submit" disabled={isLoading || !name.trim()}>
-              {isLoading ? 'Creating…' : 'Create channel'}
+              {isLoading ? "Creating…" : "Create channel"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

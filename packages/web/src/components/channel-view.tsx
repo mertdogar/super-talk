@@ -1,25 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Hash, Send } from 'lucide-react'
-import { Avatar } from '@/components/avatar'
-import { ComposerInput } from '@/components/composer-input/composer-input'
-import type { MentionGroup } from '@/components/composer-input/types'
-import { MessageText } from '@/components/message-text'
-import { Button } from '@/components/ui/button'
-import { ChatMessageList } from '@/components/ui/chat/chat-message-list'
-import type { Member, Message, MembersDoc, MessagesDoc } from '@/contract'
-import type { ReadState } from '@/hooks/use-read-state'
-import { useRequest, useResource } from '@/lib/superline'
-import { cn } from '@/lib/utils'
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Hash, Menu, Send } from "lucide-react";
+import { Avatar } from "@/components/avatar";
+import { ComposerInput } from "@/components/composer-input/composer-input";
+import type { MentionGroup } from "@/components/composer-input/types";
+import { MessageText } from "@/components/message-text";
+import { Button } from "@/components/ui/button";
+import { ChatMessageList } from "@/components/ui/chat/chat-message-list";
+import type { Member, Message, MembersDoc, MessagesDoc } from "@/contract";
+import type { ReadState } from "@/hooks/use-read-state";
+import { useRequest, useResource } from "@/lib/superline";
+import { cn } from "@/lib/utils";
 
-const GROUP_WINDOW = 5 * 60 * 1000 // group consecutive messages from the same author within 5 min
+const GROUP_WINDOW = 5 * 60 * 1000; // group consecutive messages from the same author within 5 min
 
 interface ChannelViewProps {
-  me: string
-  channelId: string
-  channelName: string
-  online: string[]
-  typingUsers: string[]
-  markRead: ReadState['markRead']
+  me: string;
+  channelId: string;
+  channelName: string;
+  online: string[];
+  typingUsers: string[];
+  markRead: ReadState["markRead"];
+  onOpenMenu: () => void;
 }
 
 export function ChannelView({
@@ -29,37 +30,47 @@ export function ChannelView({
   online,
   typingUsers,
   markRead,
+  onOpenMenu,
 }: ChannelViewProps): React.JSX.Element {
-  const { data } = useResource<MessagesDoc>('chat', `messages:${channelId}`)
-  const items = data?.items ?? []
-  const latestAt = items.length ? items[items.length - 1]!.at : 0
+  const { data } = useResource<MessagesDoc>("chat", `messages:${channelId}`);
+  const items = data?.items ?? [];
+  const latestAt = items.length ? items[items.length - 1]!.at : 0;
 
   // @mention roster: persisted channel members (each carries a role) unioned with anyone currently
   // online but not yet a member (treated as a person). Self is excluded.
-  const { data: membersDoc } = useResource<MembersDoc>('chat', `members:${channelId}`)
+  const { data: membersDoc } = useResource<MembersDoc>("chat", `members:${channelId}`);
   const mentions = useMemo(
     () => buildMentionGroups(membersDoc?.members ?? [], online, me),
     [membersDoc, online, me],
-  )
+  );
 
   // viewing a channel marks it read up to its newest message
   useEffect(() => {
-    if (latestAt) markRead(channelId, latestAt)
-  }, [channelId, latestAt, markRead])
+    if (latestAt) markRead(channelId, latestAt);
+  }, [channelId, latestAt, markRead]);
 
-  const { call: send } = useRequest('send')
-  const { call: ping } = useRequest('typing')
+  const { call: send } = useRequest("send");
+  const { call: ping } = useRequest("typing");
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-background">
-      <header className="flex items-center gap-2 border-b px-4 py-3 shadow-sm">
+      <header className="flex items-center gap-2 border-b px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] shadow-sm">
+        <button
+          onClick={onOpenMenu}
+          aria-label="Open channels menu"
+          className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
         <Hash className="h-5 w-5 text-muted-foreground" />
         <h2 className="font-bold text-foreground">{channelName}</h2>
         <span className="text-sm text-muted-foreground">· {items.length} messages</span>
       </header>
 
       {data === undefined ? (
-        <div className="grid flex-1 place-items-center text-sm text-muted-foreground">connecting…</div>
+        <div className="grid flex-1 place-items-center text-sm text-muted-foreground">
+          connecting…
+        </div>
       ) : items.length === 0 ? (
         <Empty channelName={channelName} />
       ) : (
@@ -77,30 +88,30 @@ export function ChannelView({
         onType={() => void ping({ channel: channelId }).catch(() => {})}
       />
     </section>
-  )
+  );
 }
 
 function MessageRows({ items, me }: { items: Message[]; me: string }): React.JSX.Element {
-  const rows: React.ReactNode[] = []
-  let lastDay = ''
-  let lastFrom = ''
-  let lastAt = 0
+  const rows: React.ReactNode[] = [];
+  let lastDay = "";
+  let lastFrom = "";
+  let lastAt = 0;
 
   for (const m of items) {
-    const day = new Date(m.at).toDateString()
+    const day = new Date(m.at).toDateString();
     if (day !== lastDay) {
-      rows.push(<DayDivider key={`day-${m.id}`} at={m.at} />)
-      lastDay = day
-      lastFrom = ''
-      lastAt = 0
+      rows.push(<DayDivider key={`day-${m.id}`} at={m.at} />);
+      lastDay = day;
+      lastFrom = "";
+      lastAt = 0;
     }
-    const grouped = m.from === lastFrom && m.at - lastAt < GROUP_WINDOW
-    rows.push(<MessageRow key={m.id} m={m} grouped={grouped} mine={m.from === me} />)
-    lastFrom = m.from
-    lastAt = m.at
+    const grouped = m.from === lastFrom && m.at - lastAt < GROUP_WINDOW;
+    rows.push(<MessageRow key={m.id} m={m} grouped={grouped} mine={m.from === me} />);
+    lastFrom = m.from;
+    lastAt = m.at;
   }
 
-  return <>{rows}</>
+  return <>{rows}</>;
 }
 
 function MessageRow({
@@ -108,12 +119,14 @@ function MessageRow({
   grouped,
   mine,
 }: {
-  m: Message
-  grouped: boolean
-  mine: boolean
+  m: Message;
+  grouped: boolean;
+  mine: boolean;
 }): React.JSX.Element {
   return (
-    <div className={cn('group flex gap-3 px-4 hover:bg-muted/60', grouped ? 'py-0.5' : 'mt-3 py-0.5')}>
+    <div
+      className={cn("group flex gap-3 px-4 hover:bg-muted/60", grouped ? "py-0.5" : "mt-3 py-0.5")}
+    >
       <div className="w-9 shrink-0">
         {grouped ? (
           <span className="hidden pr-1 text-right text-[11px] leading-6 text-muted-foreground group-hover:block">
@@ -128,7 +141,9 @@ function MessageRow({
           <div className="flex items-baseline gap-2">
             <span className="font-semibold text-foreground">
               {m.from}
-              {mine && <span className="ml-1 text-xs font-normal text-muted-foreground">(you)</span>}
+              {mine && (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">(you)</span>
+              )}
             </span>
             <span className="text-xs text-muted-foreground">{timeLong(m.at)}</span>
           </div>
@@ -138,7 +153,7 @@ function MessageRow({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function DayDivider({ at }: { at: number }): React.JSX.Element {
@@ -150,7 +165,7 @@ function DayDivider({ at }: { at: number }): React.JSX.Element {
       </span>
       <div className="h-px flex-1 bg-border" />
     </div>
-  )
+  );
 }
 
 function Empty({ channelName }: { channelName: string }): React.JSX.Element {
@@ -161,22 +176,22 @@ function Empty({ channelName }: { channelName: string }): React.JSX.Element {
       </div>
       <h3 className="text-2xl font-bold">#{channelName}</h3>
       <p className="text-muted-foreground">
-        This is the very beginning of the <span className="font-semibold">#{channelName}</span>{' '}
+        This is the very beginning of the <span className="font-semibold">#{channelName}</span>{" "}
         channel. Say hello 👋
       </p>
     </div>
-  )
+  );
 }
 
 function TypingIndicator({ users }: { users: string[] }): React.JSX.Element {
   const label =
     users.length === 0
-      ? ''
+      ? ""
       : users.length === 1
         ? `${users[0]} is typing`
         : users.length === 2
           ? `${users[0]} and ${users[1]} are typing`
-          : `${users.length} people are typing`
+          : `${users.length} people are typing`;
 
   return (
     <div className="flex h-5 items-center gap-1 px-4 text-xs italic text-muted-foreground">
@@ -191,7 +206,7 @@ function TypingIndicator({ users }: { users: string[] }): React.JSX.Element {
         </>
       )}
     </div>
-  )
+  );
 }
 
 function Dot({ delay }: { delay: string }): React.JSX.Element {
@@ -200,7 +215,7 @@ function Dot({ delay }: { delay: string }): React.JSX.Element {
       className="inline-block h-1 w-1 animate-bounce rounded-full bg-muted-foreground"
       style={{ animationDelay: delay }}
     />
-  )
+  );
 }
 
 function Composer({
@@ -209,36 +224,36 @@ function Composer({
   onSend,
   onType,
 }: {
-  channelName: string
-  mentions: MentionGroup[]
-  onSend: (text: string) => void
-  onType: () => void
+  channelName: string;
+  mentions: MentionGroup[];
+  onSend: (text: string) => void;
+  onType: () => void;
 }): React.JSX.Element {
-  const [text, setText] = useState('')
-  const lastTyped = useRef(0)
+  const [text, setText] = useState("");
+  const lastTyped = useRef(0);
 
   const submit = () => {
-    const trimmed = text.trim()
-    if (!trimmed) return
-    setText('')
-    onSend(trimmed)
-  }
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setText("");
+    onSend(trimmed);
+  };
 
   const onChange = (value: string) => {
-    setText(value)
-    const now = Date.now()
+    setText(value);
+    const now = Date.now();
     if (value && now - lastTyped.current > 1500) {
-      lastTyped.current = now
-      onType()
+      lastTyped.current = now;
+      onType();
     }
-  }
+  };
 
   return (
-    <div className="px-4 pb-4">
+    <div className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <form
         onSubmit={(e) => {
-          e.preventDefault()
-          submit()
+          e.preventDefault();
+          submit();
         }}
         className="flex items-end gap-2 rounded-lg border border-input bg-background px-2 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-ring"
       >
@@ -251,24 +266,30 @@ function Composer({
           placeholder={`Message #${channelName} — @ to mention`}
           ariaLabel={`Message #${channelName}`}
         />
-        <Button type="submit" size="icon" disabled={!text.trim()} aria-label="Send message">
+        <Button
+          type="submit"
+          size="icon"
+          disabled={!text.trim()}
+          aria-label="Send message"
+          className="h-11 w-11 shrink-0 md:h-9 md:w-9"
+        >
           <Send className="h-4 w-4" />
         </Button>
       </form>
     </div>
-  )
+  );
 }
 
 /** Build the two-section (@Agents / @People) mention vocabulary from the channel roster, unioned
  * with anyone currently online but not yet a member (treated as a person). Excludes `me`. */
 function buildMentionGroups(members: Member[], online: string[], me: string): MentionGroup[] {
-  const byName = new Map<string, Member['role']>()
-  for (const m of members) byName.set(m.name, m.role)
-  for (const name of online) if (!byName.has(name)) byName.set(name, 'user')
-  byName.delete(me)
+  const byName = new Map<string, Member["role"]>();
+  for (const m of members) byName.set(m.name, m.role);
+  for (const name of online) if (!byName.has(name)) byName.set(name, "user");
+  byName.delete(me);
 
-  const onlineSet = new Set(online)
-  const itemsFor = (role: Member['role']) =>
+  const onlineSet = new Set(online);
+  const itemsFor = (role: Member["role"]) =>
     [...byName.entries()]
       .filter(([, r]) => r === role)
       .map(([name]) => name)
@@ -276,29 +297,29 @@ function buildMentionGroups(members: Member[], online: string[], me: string): Me
       .map((name) => ({
         id: `${role}:${name}`,
         name,
-        detail: onlineSet.has(name) ? 'online' : undefined,
-      }))
+        detail: onlineSet.has(name) ? "online" : undefined,
+      }));
 
   return [
-    { label: 'Agents', items: itemsFor('agent') },
-    { label: 'People', items: itemsFor('user') },
-  ].filter((g) => g.items.length > 0)
+    { label: "Agents", items: itemsFor("agent") },
+    { label: "People", items: itemsFor("user") },
+  ].filter((g) => g.items.length > 0);
 }
 
 function timeLong(at: number): string {
-  return new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function timeShort(at: number): string {
-  return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function dayLabel(at: number): string {
-  const d = new Date(at)
-  const today = new Date()
-  const yesterday = new Date()
-  yesterday.setDate(today.getDate() - 1)
-  if (d.toDateString() === today.toDateString()) return 'Today'
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
+  const d = new Date(at);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
 }
