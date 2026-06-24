@@ -74,7 +74,7 @@ export function ChannelView({
       ) : items.length === 0 ? (
         <Empty channelName={channelName} />
       ) : (
-        <ChatMessageList className="flex-1">
+        <ChatMessageList className="flex-1 overflow-y-auto">
           <MessageRows items={items} me={me} />
         </ChatMessageList>
       )}

@@ -1,13 +1,13 @@
 // Adapted from shadcn-chat (jakobhoeg/shadcn-chat, MIT) — React 19 plain-function form, cn()-merged
 // className, and no built-in horizontal padding (the Slack rows own their own padding).
-import * as React from 'react'
-import { ArrowDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
-import { useAutoScroll } from './hooks/useAutoScroll'
+import * as React from "react";
+import { ArrowDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useAutoScroll } from "./hooks/useAutoScroll";
 
 interface ChatMessageListProps extends React.HTMLAttributes<HTMLDivElement> {
-  smooth?: boolean
+  smooth?: boolean;
 }
 
 export function ChatMessageList({
@@ -19,12 +19,12 @@ export function ChatMessageList({
   const { scrollRef, isAtBottom, scrollToBottom, disableAutoScroll } = useAutoScroll({
     smooth,
     content: children,
-  })
+  });
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full min-h-0 w-full">
       <div
-        className={cn('flex h-full w-full flex-col overflow-y-auto py-4', className)}
+        className={cn("flex h-full w-full flex-col overflow-y-auto py-4", className)}
         ref={scrollRef}
         onWheel={disableAutoScroll}
         onTouchMove={disableAutoScroll}
@@ -45,5 +45,5 @@ export function ChatMessageList({
         </Button>
       )}
     </div>
-  )
+  );
 }

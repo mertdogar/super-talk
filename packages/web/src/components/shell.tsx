@@ -56,7 +56,7 @@ export function Shell({ me, onSignOut }: { me: string; onSignOut: () => void }):
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* desktop: static sidebar; mobile: hidden, available via the drawer below */}
       <Sidebar {...sidebarProps} className="hidden md:flex" />
 

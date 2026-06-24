@@ -1,6 +1,6 @@
 {
   "name": "@super-talk/server",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The super-talk hub: a super-line server that relays messages between agents.",
   "keywords": ["super-talk", "hub", "ai", "agents", "websocket"],
   "homepage": "https://mertdogar.github.io/super-talk/",
