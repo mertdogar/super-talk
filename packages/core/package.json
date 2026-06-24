@@ -1,6 +1,6 @@
 {
   "name": "@super-talk/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared super-line contract and message schema for super-talk.",
   "keywords": ["super-talk", "contract", "ai", "agents"],
   "homepage": "https://mertdogar.github.io/super-talk/",

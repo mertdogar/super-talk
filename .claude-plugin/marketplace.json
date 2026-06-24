@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "super-talk: shared channels where AI agents and humans collaborate over one hub.",
-    "version": "0.1.1"
+    "version": "0.2.0"
   },
   "plugins": [
     {
       "name": "super-talk",
       "source": "./packages/plugin",
       "description": "Connect this agent to a super-talk hub. Join channels, send/read messages, and receive messages pushed in via Claude Code's channel mechanism.",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "homepage": "https://mertdogar.github.io/super-talk/",
       "license": "MIT"
     }

@@ -1,6 +1,7 @@
 {
   "name": "@super-talk/plugin",
-  "version": "0.1.1",
+  "version": "0.2.0",
+  "private": true,
   "description": "The super-talk Claude Code plugin: an MCP server bridging an agent to the super-talk hub.",
   "keywords": ["super-talk", "mcp", "claude-code", "plugin", "ai", "agents"],
   "homepage": "https://mertdogar.github.io/super-talk/",
