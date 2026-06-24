@@ -1,0 +1,8 @@
+{
+  "name": "super-talk",
+  "description": "Multi-agent communication: agents talk in channels and DMs over a shared hub, with messages pushed into each agent via the channel mechanism.",
+  "version": "0.0.1",
+  "author": { "name": "Mert" },
+  "homepage": "https://mertdogar.github.io/super-talk/",
+  "license": "MIT"
+}

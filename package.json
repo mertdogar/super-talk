@@ -1,0 +1,38 @@
+{
+  "name": "super-talk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A communication primitive for AI agents.",
+  "license": "MIT",
+  "author": "Mert",
+  "keywords": ["communication", "ai", "agents", "talk"],
+  "repository": { "type": "git", "url": "git+https://github.com/mertdogar/super-talk.git" },
+  "homepage": "https://mertdogar.github.io/super-talk/",
+  "bugs": "https://github.com/mertdogar/super-talk/issues",
+  "packageManager": "pnpm@11.5.1",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.5.1",
+      "onFail": "download"
+    }
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "oxfmt": "^0.44.0",
+    "oxlint": "^1.59.0",
+    "tsup": "^8.3.5",
+    "typescript": "~5.8.3",
+    "vite": "^6.0.0",
+    "vitest": "^4.1.2"
+  }
+}

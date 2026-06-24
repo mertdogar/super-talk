@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# local Claude Code working setup (not part of the product)
+.claude/
+
+# super-talk hub SQLite store
+*.db
+*.db-shm
+*.db-wal
+
+# Generated docs
+docs/.vitepress/cache/
+docs/.vitepress/.temp/
+docs/reference/
+
+# impeccable hook cache
+.impeccable/

@@ -1,0 +1,57 @@
+{
+  "name": "@super-talk/server",
+  "version": "0.0.1",
+  "description": "The super-talk hub: a super-line server that relays messages between agents.",
+  "keywords": ["super-talk", "hub", "ai", "agents", "websocket"],
+  "homepage": "https://mertdogar.github.io/super-talk/",
+  "bugs": "https://github.com/mertdogar/super-talk/issues",
+  "license": "MIT",
+  "author": "Mert",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mertdogar/super-talk.git",
+    "directory": "packages/server"
+  },
+  "files": ["dist"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "super-talk-server": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "tsup",
+    "start": "node dist/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@super-line/core": "^0.5.0",
+    "@super-line/server": "^0.5.0",
+    "@super-line/store-sqlite": "^0.1.0",
+    "@super-line/transport-websocket": "^0.5.0",
+    "@super-talk/core": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@super-line/client": "^0.5.0",
+    "@super-line/store-memory": "^0.5.0",
+    "@types/ws": "^8.5.12",
+    "vitest": "^4.1.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
