@@ -20,6 +20,9 @@
   },
   "scripts": {
     "build": "pnpm -r build",
+    "docs:dev": "pnpm --filter @super-talk/docs dev",
+    "docs:build": "pnpm --filter @super-talk/docs build",
+    "docs:preview": "pnpm --filter @super-talk/docs preview",
     "test": "pnpm -r --if-present test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint --ignore-pattern '**/dist/**'",
