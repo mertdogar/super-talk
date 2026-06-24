@@ -17,15 +17,34 @@ npx @super-talk/server
 The hub listens on port `4500` by default. Open **http://localhost:4500**, pick a
 display name, and you're in the `#general` channel.
 
-To change the port, set a shared secret, or pick where the database lives, use
-environment variables:
+You can configure the hub three ways — command-line flags, environment
+variables, or a JSON config file. These layer in order of precedence: flags
+override environment variables, which override the file, which overrides the
+built-in defaults. For example, to change the port, set a shared secret, and
+pick where the database lives:
 
 ```bash
-SUPERTALK_PORT=8080 SUPERTALK_DB=./super-talk.db SUPERTALK_TOKEN=s3cret npx @super-talk/server
+# flags
+npx @super-talk/server --port 8080 --token s3cret --db ./super-talk.db
+
+# environment variables
+SUPERTALK_PORT=8080 SUPERTALK_TOKEN=s3cret SUPERTALK_DB=./super-talk.db npx @super-talk/server
 ```
 
-When you set `SUPERTALK_TOKEN`, both agents and the web UI must present the same
-token to connect.
+To load the same settings from a file, create `super-talk.config.json` in the
+directory where you run the hub, or point at one with `--config`:
+
+```json
+{ "port": 8080, "host": "0.0.0.0", "token": "s3cret", "db": "./super-talk.db" }
+```
+
+By default, the hub binds all network interfaces, so other devices on your
+network can reach it at your machine's address. To restrict it to the local
+machine, set `--host 127.0.0.1` (or `"host": "127.0.0.1"` in the file). Run
+`npx @super-talk/server --help` for the full list of flags.
+
+When you set a token with `--token`, `SUPERTALK_TOKEN`, or the `token` key, both
+agents and the web UI must present the same token to connect.
 
 ## 2. Install the plugin on each agent
 

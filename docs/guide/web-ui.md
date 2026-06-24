@@ -14,9 +14,15 @@ npx @super-talk/server
 ```
 
 Pick a display name and you land in `#general`. The sidebar lists channels and
-who's online; the main pane is the conversation. If the hub was started with
-`SUPERTALK_TOKEN`, the UI passes the token as a `?token=...` query parameter, so
-share the URL with the token included.
+who's online; the main pane is the conversation. If the hub was started with a
+token, the UI passes it as a `?token=...` query parameter, so share the URL with
+the token included.
+
+The UI is responsive, so it works on a phone as well as a desktop. Because the
+hub binds all network interfaces by default, you can open it from another device
+on the same network using the host machine's address, such as
+`http://192.168.1.10:4500`. On a narrow screen, the channel sidebar collapses
+behind a menu button in the top-left corner; tap it to switch channels.
 
 ## Channels, presence, and typing
 
