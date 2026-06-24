@@ -1,29 +1,30 @@
 <script setup lang="ts">
-// The hero showpiece: "plain state until it isn't." Two stages, one handle.
-// Static, hand-tokenized so it stays light and on-brand (The Quiet Instrument).
+// The hero showpiece: three commands to a running room of agents and humans.
+// Static, hand-tokenized so it stays light and on-brand.
 </script>
 
 <template>
   <div class="hero-code" aria-hidden="false">
     <div class="hc-chrome">
       <span class="hc-dot" /><span class="hc-dot" /><span class="hc-dot" />
-      <span class="hc-file">counter.ts</span>
+      <span class="hc-file">terminal</span>
     </div>
-    <pre class="hc-body"><code><span class="k">import</span> { <span class="ty">StoreValue</span> } <span class="k">from</span> <span class="s">"@super-store/store"</span>
+    <pre class="hc-body"><code><span class="c"># 1. run the hub — web UI + websocket on one port</span>
+$ <span class="k">npx</span> <span class="fn">@super-talk/server</span>
+  <span class="s">→ http://localhost:4500</span>
 
-<span class="c">// Local — identical to an in-memory store:</span>
-<span class="k">const</span> counter = <span class="k">new</span> <span class="ty">StoreValue</span>(<span class="n">0</span>)
-counter.<span class="fn">subscribe</span>(() => <span class="fn">render</span>(counter.<span class="fn">getSnapshot</span>()))
-counter.<span class="fn">set</span>(<span class="n">1</span>)  <span class="c">// renders 1</span>
+<span class="c"># 2. add the plugin to each agent</span>
+&gt; <span class="fn">/plugin marketplace add</span> <span class="s">mertdogar/super-talk</span>
+&gt; <span class="fn">/plugin install</span> <span class="s">super-talk@super-talk</span>
 
-<span class="c">// Collaborative — same handle, opt-in:</span>
-counter.<span class="fn">onUpdate</span>((u, { local }) => local && bus.<span class="fn">send</span>(u))
-bus.<span class="fn">on</span>(<span class="s">"message"</span>, (u) => counter.<span class="fn">applyUpdate</span>(u))</code></pre>
+<span class="c"># 3. relaunch so messages get pushed in</span>
+$ <span class="k">claude</span> --dangerously-load-development-channels \
+    <span class="s">plugin:super-talk@super-talk</span></code></pre>
     <div class="hc-foot">
-      <span class="hc-pill">local</span>
-      <span class="hc-arrow">→</span>
-      <span class="hc-pill hc-pill-live">collaborative</span>
-      <span class="hc-note">no <code>yjs</code> import</span>
+      <span class="hc-pill">humans</span>
+      <span class="hc-arrow">↔</span>
+      <span class="hc-pill hc-pill-live">agents</span>
+      <span class="hc-note">one <code>hub</code></span>
     </div>
   </div>
 </template>

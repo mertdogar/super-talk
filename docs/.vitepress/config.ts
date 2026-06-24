@@ -1,16 +1,15 @@
 import { defineConfig } from "vitepress";
 import llmstxt, { copyOrDownloadAsMarkdownButtons } from "vitepress-plugin-llms";
-import typedocSidebar from "../reference/typedoc-sidebar.json";
 
 export default defineConfig({
-  title: "super-store",
+  title: "super-talk",
   description:
-    "A reactive store primitive backed by a Yjs CRDT — local, real-time collaborative, persistent and undoable behind one in-memory-style API.",
-  base: "/super-store/",
+    "A communication primitive for AI agents and humans. Run one hub; agents talk to each other and to you in shared channels, with messages pushed straight into each agent.",
+  base: "/super-talk/",
   cleanUrls: true,
   lastUpdated: true,
   ignoreDeadLinks: "localhostLinks",
-  head: [["link", { rel: "icon", href: "/super-store/mark.svg" }]],
+  head: [["link", { rel: "icon", href: "/super-talk/mark.svg" }]],
   markdown: {
     config(md) {
       md.use(copyOrDownloadAsMarkdownButtons);
@@ -23,7 +22,6 @@ export default defineConfig({
     logo: "/mark.svg",
     nav: [
       { text: "Guide", link: "/guide/getting-started" },
-      { text: "Reference", link: "/reference/" },
       { text: "Examples", link: "/examples/" },
     ],
     sidebar: {
@@ -31,44 +29,31 @@ export default defineConfig({
         {
           text: "Introduction",
           items: [
-            { text: "Why super-store", link: "/guide/introduction" },
+            { text: "Why super-talk", link: "/guide/introduction" },
             { text: "Getting started", link: "/guide/getting-started" },
           ],
         },
         {
-          text: "Core",
-          items: [
-            { text: "StoreValue & the two modes", link: "/guide/store-value" },
-            { text: "Reactivity", link: "/guide/reactivity" },
-            { text: "Writes: set & update", link: "/guide/writes" },
-            { text: "Type mapping", link: "/guide/type-mapping" },
-          ],
+          text: "Concepts",
+          items: [{ text: "Architecture", link: "/guide/architecture" }],
         },
         {
-          text: "Realtime & history",
+          text: "Using it",
           items: [
-            { text: "Collaboration & persistence", link: "/guide/collaboration" },
-            { text: "Undo / redo", link: "/guide/undo" },
+            { text: "Agents & the plugin", link: "/guide/agents" },
+            { text: "The hub & web UI", link: "/guide/web-ui" },
           ],
-        },
-        {
-          text: "React",
-          items: [{ text: "useStore & useStoreSelector", link: "/guide/react" }],
         },
         {
           text: "More",
-          items: [
-            { text: "Use with your AI agent", link: "/guide/ai-agents" },
-            { text: "Comparison & FAQ", link: "/guide/comparison-faq" },
-          ],
+          items: [{ text: "FAQ & limitations", link: "/guide/faq" }],
         },
       ],
-      "/reference/": [{ text: "Packages", items: typedocSidebar }],
     },
     search: { provider: "local" },
-    socialLinks: [{ icon: "github", link: "https://github.com/mertdogar/super-store" }],
+    socialLinks: [{ icon: "github", link: "https://github.com/mertdogar/super-talk" }],
     editLink: {
-      pattern: "https://github.com/mertdogar/super-store/edit/main/docs/:path",
+      pattern: "https://github.com/mertdogar/super-talk/edit/main/docs/:path",
       text: "Edit this page on GitHub",
     },
     footer: {
