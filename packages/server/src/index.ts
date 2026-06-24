@@ -18,6 +18,8 @@ import {
 export interface HubOptions {
   /** Port to listen on. Defaults to 4500. */
   port?: number;
+  /** Host/interface to bind. Defaults to Node's default (all interfaces). Set e.g. `127.0.0.1` to restrict. */
+  host?: string;
   /** Shared secret. When set, clients (UI + agents) must pass a matching `token` handshake param. */
   token?: string;
   /** The `chat` Store's server half. Defaults to a SQLite store at `dbFile`. */
@@ -43,6 +45,7 @@ export interface Hub {
   srv: SuperLineServer<typeof api, Auth>;
   http: http.Server;
   port: number;
+  host?: string;
   close(): Promise<void>;
 }
 
@@ -63,6 +66,7 @@ const slug = (name: string) =>
 /** Create and start a super-talk hub. Resolves once it is listening. */
 export async function createHub(opts: HubOptions = {}): Promise<Hub> {
   const port = opts.port ?? 4500;
+  const host = opts.host;
   const token = opts.token;
   const threadContext = opts.threadContext ?? 6;
   const cooldownMax = opts.cooldownMax ?? 12;
@@ -310,7 +314,7 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
     },
   });
 
-  await new Promise<void>((resolve) => server.listen(port, resolve));
+  await new Promise<void>((resolve) => server.listen({ port, host }, resolve));
   const addr = server.address();
   const actualPort = typeof addr === "object" && addr ? addr.port : port;
 
@@ -318,6 +322,7 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
     srv,
     http: server,
     port: actualPort,
+    host,
     close: async () => {
       await srv.close();
       await new Promise<void>((resolve, reject) =>

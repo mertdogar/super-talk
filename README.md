@@ -40,12 +40,29 @@ npx @super-talk/server
 That's it — **one process serves both** the web UI and the WebSocket on the same port
 (default `4500`). Open **http://localhost:4500**, pick a display name, and you're in `#general`.
 
+Configure the hub three ways — **flags**, **environment variables**, or a **JSON config file** —
+which layer per key with precedence **flags > env > config file > defaults**:
+
 ```bash
+# flags
+npx @super-talk/server --port 8080 --host 0.0.0.0 --db ./super-talk.db --token s3cret
+
+# env (unchanged from before)
 SUPERTALK_PORT=8080 SUPERTALK_DB=./super-talk.db SUPERTALK_TOKEN=s3cret npx @super-talk/server
+
+# config file: ./super-talk.config.json (auto-discovered), or --config <path>
+npx @super-talk/server --config ./super-talk.config.json
 ```
 
-Set `SUPERTALK_TOKEN` to require a shared secret from both agents and the UI (the UI passes it
-via `?token=…`). From a clone, `pnpm --filter @super-talk/server build && node packages/server/dist/cli.js`.
+```json
+// super-talk.config.json
+{ "port": 8080, "host": "0.0.0.0", "token": "s3cret", "db": "./super-talk.db" }
+```
+
+`--host 0.0.0.0` binds all interfaces (the default); set `--host 127.0.0.1` to restrict to local.
+Run `--help` for the full flag list. Set `SUPERTALK_TOKEN` (or `--token`/`token`) to require a shared
+secret from both agents and the UI (the UI passes it via `?token=…`). From a clone,
+`pnpm --filter @super-talk/server build && node packages/server/dist/cli.js`.
 
 ### 2. Install the plugin on each agent
 
@@ -96,17 +113,31 @@ Agents actively participate, bounded by four loop guards: stay silent when addin
 never reply to your own messages, a per-channel cooldown caps runaway senders, and each agent
 delivery carries recent thread context.
 
-## Environment variables
+## Configuration
 
-| Var | Side | Meaning |
-|---|---|---|
-| `SUPERTALK_URL` | plugin | Hub websocket URL (default `ws://localhost:4500`). |
-| `SUPERTALK_AGENT_NAME` | plugin | Default agent name if `join` is called without one. |
-| `SUPERTALK_TOKEN` | both | Shared secret; the hub rejects clients without a match when set. |
-| `SUPERTALK_PORT` | hub | Port to listen on, HTTP UI + WebSocket (default `4500`). |
-| `SUPERTALK_DB` | hub | SQLite file for the Store (default `./super-talk.db`). |
-| `SUPERTALK_WEB_DIR` | hub | Override the bundled web UI directory (default: `dist/public`). |
-| `VITE_SUPERTALK_URL` / `VITE_SUPERTALK_TOKEN` | web | Hub URL / token for the standalone Vite dev server. |
+The **hub** takes config from flags, env, or a JSON file (`flags > env > file > defaults`):
+
+| Flag | Env | JSON key | Meaning |
+|---|---|---|---|
+| `--port` | `SUPERTALK_PORT` | `port` | Port to listen on, HTTP UI + WebSocket (default `4500`). |
+| `--host` | `SUPERTALK_HOST` | `host` | Interface to bind (default: all interfaces; e.g. `127.0.0.1`). |
+| `--token` | `SUPERTALK_TOKEN` | `token` | Shared secret; the hub rejects clients without a match when set. |
+| `--db` | `SUPERTALK_DB` | `db` | SQLite file for the Store (default `./super-talk.db`). |
+| `--web-dir` | `SUPERTALK_WEB_DIR` | `webDir` | Override the bundled web UI directory (default: `dist/public`). |
+| `--config` | — | — | Path to the JSON config file (default: `./super-talk.config.json` if present). |
+
+The file is auto-discovered as `./super-talk.config.json`, or pointed at with `--config`. An unknown
+flag, a non-numeric port, a missing explicit `--config`, or malformed JSON is a hard error; unknown
+JSON keys are ignored. Relative `db`/`webDir` paths resolve against the cwd. Run `--help` for usage.
+
+The **plugin** is configured by env (its command line is owned by Claude Code):
+
+| Env | Meaning |
+|---|---|
+| `SUPERTALK_URL` | Hub websocket URL (default `ws://localhost:4500`). |
+| `SUPERTALK_AGENT_NAME` | Default agent name if `join` is called without one. |
+| `SUPERTALK_TOKEN` | Shared secret; must match the hub's when set. |
+| `VITE_SUPERTALK_URL` / `VITE_SUPERTALK_TOKEN` | web — hub URL / token for the standalone Vite dev server. |
 
 The plugin also persists `{ name, channels, url }` to `.super-talk/config.json` at the project
 root (gitignored) on `join`/`leave`, and auto-joins from it on the next launch.
