@@ -1,6 +1,6 @@
 {
   "name": "@super-talk/plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The super-talk Claude Code plugin: an MCP server bridging an agent to the super-talk hub.",
   "keywords": ["super-talk", "mcp", "claude-code", "plugin", "ai", "agents"],
   "homepage": "https://mertdogar.github.io/super-talk/",
@@ -12,7 +12,7 @@
     "url": "git+https://github.com/mertdogar/super-talk.git",
     "directory": "packages/plugin"
   },
-  "files": ["dist", ".claude-plugin", ".mcp.json", "commands"],
+  "files": ["dist", ".claude-plugin", "commands"],
   "type": "module",
   "sideEffects": false,
   "bin": {
