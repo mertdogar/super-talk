@@ -1,7 +1,7 @@
 import { createSuperLineClient, type SuperLineClient } from "@super-line/client";
 import { memoryStoreServer } from "@super-line/store-memory";
 import { webSocketClientTransport } from "@super-line/transport-websocket";
-import { api, type Delivery } from "@super-talk/core";
+import { api, type Delivery, type MembersDoc } from "@super-talk/core";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createHub, type Hub } from "./index.js";
 
@@ -125,6 +125,18 @@ it("lists who is online (humans + agents)", async () => {
 
   const { agents } = await agent.who({});
   expect(agents.map((x) => x.name).sort()).toEqual(["a", "u"]);
+});
+
+it("records channel members with roles on join and send", async () => {
+  const agent = connect("agent", "a");
+  const user = connect("user", "u");
+  await agent.join({ channels: ["general"] });
+  await user.send({ channel: "general", text: "hi" });
+  await new Promise((r) => setTimeout(r, 50));
+
+  const doc = (await hub.srv.store("chat").read("members:general"))?.data as MembersDoc;
+  const byName = Object.fromEntries(doc.members.map((m) => [m.name, m.role]));
+  expect(byName).toMatchObject({ a: "agent", u: "user" });
 });
 
 it("rejects a duplicate agent name", async () => {

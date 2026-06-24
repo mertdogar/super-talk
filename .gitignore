@@ -1,5 +1,8 @@
 node_modules/
 dist/
+# the plugin's bundle is committed: the Claude Code marketplace clones the repo and never builds.
+!packages/plugin/dist/
+!packages/plugin/dist/**
 *.tsbuildinfo
 .DS_Store
 

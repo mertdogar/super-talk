@@ -9,6 +9,8 @@ import {
   api,
   type ChannelsDoc,
   type Delivery,
+  type Member,
+  type MembersDoc,
   type Message,
   type MessagesDoc,
 } from "@super-talk/core";
@@ -48,6 +50,7 @@ const WORKSPACE = "workspace";
 const READABLE = { [WORKSPACE]: { read: true, write: false } };
 const CHANNELS = "channels";
 const msgKey = (id: string) => `messages:${id}`;
+const memKey = (id: string) => `members:${id}`;
 const nameOf = (conn: Conn) => (conn.ctx as Ctx).name;
 const slug = (name: string) =>
   name
@@ -138,14 +141,24 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
   };
 
   const pushToAgents = (channel: string, delivery: Delivery) => {
-    for (const c of srv.local.connections) {
-      if (c.role !== "agent") continue;
-      if (!(c.data as AgentData).channels?.includes(channel)) continue;
+    const agents = srv.local.connections.filter((c) => c.role === "agent");
+    let pushed = 0;
+    for (const c of agents) {
+      const joined = (c.data as AgentData).channels ?? [];
+      const match = joined.includes(channel);
+      console.log(
+        `[super-talk] push #${channel} -> agent "${nameOf(c)}" joined=[${joined.join(", ")}] ${match ? "DELIVER" : "skip"}`,
+      );
+      if (!match) continue;
       (c as unknown as { emit: (event: "message", data: Delivery) => void }).emit(
         "message",
         delivery,
       );
+      pushed++;
     }
+    console.log(
+      `[super-talk] "${delivery.from}" sent to #${channel}: ${agents.length} agent conn(s), delivered to ${pushed}`,
+    );
   };
 
   // Serve the built web UI over HTTP on the same port as the WebSocket (separate `upgrade` event).
@@ -195,6 +208,7 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
   // seed the default channel once; on restart the data is already in the Store
   if (!(await store.read(CHANNELS))) {
     await store.create(msgKey("general"), { items: [] } satisfies MessagesDoc, READABLE);
+    await store.create(memKey("general"), { members: [] } satisfies MembersDoc, READABLE);
     await store.create(
       CHANNELS,
       {
@@ -204,13 +218,27 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
     );
   }
 
+  // Upsert a participant into a channel's roster (read by the UI for @mention completion). Members
+  // are added on join/send and never auto-removed — the roster outlives presence so offline/silent
+  // participants stay mentionable.
+  const touchMember = (channel: string, name: string, role: Member["role"]) =>
+    serialize(memKey(channel), async () => {
+      const res = await store.read(memKey(channel));
+      const members = ((res?.data as MembersDoc | undefined)?.members ?? []).filter(
+        (m) => m.name !== name,
+      );
+      members.push({ name, role, lastSeen: Date.now() });
+      if (res) await store.write(memKey(channel), { members } satisfies MembersDoc);
+      else await store.create(memKey(channel), { members } satisfies MembersDoc, READABLE);
+    });
+
   srv.implement({
     shared: {
-      send: async ({ channel, text }, ctx) => {
+      send: async ({ channel, text }, ctx, conn) => {
         const trimmed = text.trim();
         if (!trimmed) throw new SuperLineError("BAD_REQUEST", "empty message");
         cooldownCheck(ctx.name, channel);
-        return serialize(msgKey(channel), async () => {
+        const id = await serialize(msgKey(channel), async () => {
           const res = await store.read(msgKey(channel));
           if (!res) throw new SuperLineError("NOT_FOUND", `no channel #${channel}`);
           const doc = res.data as MessagesDoc;
@@ -219,24 +247,28 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
           await store.write(msgKey(channel), { items: [...doc.items, msg] } satisfies MessagesDoc);
           clearTyping(channel, ctx.name);
           pushToAgents(channel, { ...msg, channel, recent });
-          return { id: msg.id };
+          return msg.id;
         });
+        await touchMember(channel, ctx.name, conn.role);
+        return { id };
       },
 
-      createChannel: async ({ name }) => {
+      createChannel: async ({ name }, ctx, conn) => {
         const id = slug(name);
         if (!id) throw new SuperLineError("BAD_REQUEST", "channel name is empty");
-        return serialize(CHANNELS, async () => {
+        await serialize(CHANNELS, async () => {
           if (await store.read(msgKey(id)))
             throw new SuperLineError("CONFLICT", `#${id} already exists`);
           await store.create(msgKey(id), { items: [] } satisfies MessagesDoc, READABLE);
+          await store.create(memKey(id), { members: [] } satisfies MembersDoc, READABLE);
           const index = (await store.read(CHANNELS))?.data as ChannelsDoc;
           const channel = { id, name: name.trim(), createdAt: Date.now() };
           await store.write(CHANNELS, {
             channels: [...index.channels, channel],
           } satisfies ChannelsDoc);
-          return { id };
         });
+        await touchMember(id, ctx.name, conn.role);
+        return { id };
       },
     },
 
@@ -251,8 +283,13 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
     agent: {
       join: async ({ channels }, ctx, conn) => {
         const joined = new Set(conn.data.channels);
-        for (const ch of channels ?? []) joined.add(ch);
+        const added: string[] = [];
+        for (const ch of channels ?? []) {
+          if (!joined.has(ch)) added.push(ch);
+          joined.add(ch);
+        }
         conn.data.channels = [...joined];
+        for (const ch of added) await touchMember(ch, ctx.name, "agent");
         return { name: ctx.name, channels: conn.data.channels };
       },
       leave: async ({ channel }, _ctx, conn) => {

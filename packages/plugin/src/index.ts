@@ -42,6 +42,7 @@ let client: SuperLineClient<typeof api, "agent"> | null = null;
 let selfName = "";
 let selfUrl = "";
 let joinedChannels: string[] = [];
+let reconnectWatcher: ReturnType<typeof setInterval> | null = null;
 
 function deliver(d: Delivery) {
   const note = channelNotificationFor(d, selfName); // null when it's our own message (loop guard #2)
@@ -68,7 +69,26 @@ async function connect(name: string, url: string, channels?: string[]) {
   const res = await client.join({ channels });
   joinedChannels = res.channels;
   persist();
+  watchReconnect();
   return res;
+}
+
+// super-line replays topics on reconnect but NOT requests, so a dropped+restored socket (e.g. the
+// hub restarting) leaves the agent online but joined to nothing. No reconnect event is exposed, so
+// poll `connected` and re-join on a down→up transition to restore the server-side subscriptions.
+function watchReconnect() {
+  if (reconnectWatcher) clearInterval(reconnectWatcher);
+  let wasConnected = true;
+  reconnectWatcher = setInterval(() => {
+    if (!client) return;
+    const now = client.connected;
+    if (now && !wasConnected) {
+      client.join({ channels: joinedChannels }).catch((err) => {
+        console.error(`[super-talk] re-join after reconnect failed: ${(err as Error).message}`);
+      });
+    }
+    wasConnected = now;
+  }, 1000);
 }
 
 function requireClient(): SuperLineClient<typeof api, "agent"> {
@@ -201,6 +221,8 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<unk
     }
     case "disconnect": {
       // session-scoped: drop the connection but keep the config so next start auto-joins
+      if (reconnectWatcher) clearInterval(reconnectWatcher);
+      reconnectWatcher = null;
       client?.close();
       client = null;
       selfName = "";

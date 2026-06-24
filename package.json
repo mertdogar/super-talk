@@ -22,7 +22,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r --if-present test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "oxlint",
+    "lint": "oxlint --ignore-pattern '**/dist/**'",
     "format": "oxfmt",
     "format:check": "oxfmt --check"
   },

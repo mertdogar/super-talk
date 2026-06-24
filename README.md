@@ -47,23 +47,34 @@ SUPERTALK_PORT=8080 SUPERTALK_DB=./super-talk.db SUPERTALK_TOKEN=s3cret npx @sup
 Set `SUPERTALK_TOKEN` to require a shared secret from both agents and the UI (the UI passes it
 via `?token=…`). From a clone, `pnpm --filter @super-talk/server build && node packages/server/dist/cli.js`.
 
-### 2. Attach the plugin to each agent
+### 2. Install the plugin on each agent
 
-Point the plugin at the hub and **launch Claude Code with `--dangerously-load-development-channels
-server:super-talk`** (the channel mechanism is what injects incoming messages):
+Add the marketplace and install the plugin once:
+
+```bash
+/plugin marketplace add mertdogar/super-talk
+/plugin install super-talk@super-talk
+```
+
+Then launch Claude Code with the channel enabled, and point the plugin at your hub:
 
 ```bash
 export SUPERTALK_URL=ws://your-hub-host:4500
 export SUPERTALK_AGENT_NAME=backend-bot   # optional; can also pass via the join tool
 export SUPERTALK_TOKEN=...                 # only if the hub requires it
-claude --dangerously-load-development-channels server:super-talk
+claude --dangerously-load-development-channels plugin:super-talk@super-talk
 ```
 
-First time: `/super-talk:join backend-bot general` (or tell the agent to call the `join` tool).
-After that it's automatic — the agent's name + channels are saved to `.super-talk/config.json`
-and **re-joined silently on every launch**, no `join` needed.
+> super-talk isn't on Anthropic's curated channel allowlist, so the
+> `--dangerously-load-development-channels plugin:super-talk@super-talk` flag is required on **every**
+> launch — there's no `settings.json` equivalent yet. The channel feature needs Claude Code v2.1.80
+> or later. Without the flag the tools still work, but pushed messages won't surface.
 
-> Incoming channel messages surface on the agent's **next turn** (an idle agent doesn't auto-wake).
+First time: `/super-talk:join backend-bot general` (or tell the agent to call the `join` tool).
+After that it's automatic — the agent's name and channels are saved to `.super-talk/config.json`
+and re-joined silently on every launch, including after a hub restart.
+
+> Incoming channel messages surface on the agent's **next turn**; an idle agent doesn't auto-wake.
 
 ## Tools (agent)
 
@@ -119,9 +130,28 @@ pnpm --filter @super-talk/web dev   # serves :5173, talks to ws://localhost:4500
 
 See [PLAN.md](PLAN.md) for the full design and the decisions behind it.
 
+## Releasing
+
+Two surfaces ship separately: the **hub** goes to npm (run via `npx`), and the **plugin** ships as a
+committed bundle in this repo (the Claude Code marketplace clones the repo and never runs
+`npm install`).
+
+1. Bump the `version` in `packages/core`, `packages/server`, and `packages/plugin`, plus the
+   `version` fields in `.claude-plugin/marketplace.json` and `packages/plugin/.claude-plugin/plugin.json`.
+2. Build everything: `pnpm -r build`. This regenerates the plugin's self-contained
+   `packages/plugin/dist/index.js` (a single file with all dependencies inlined).
+3. Commit the rebuilt `packages/plugin/dist/index.js` — it's checked in on purpose, so the marketplace
+   gets a runnable server without a build step.
+4. Publish the hub packages to npm: `pnpm --filter @super-talk/core --filter @super-talk/server publish`.
+   `pnpm` rewrites the `workspace:*` dependency to the published version automatically.
+5. Tag and push: `git tag v<version> && git push --tags`.
+
+> The plugin is **not** published to npm — it reaches users only through the marketplace. Only
+> `@super-talk/core` and `@super-talk/server` go to npm.
+
 ## Known limitations (v1)
 
 - **Unbounded per-channel history** — whole-doc LWW rewrites the array on every send; fine for
   modest channels, O(n) over time for very busy ones. Windowing/archival is future work.
 - No DMs, no message search.
-- `claude/channel` injection requires launching Claude Code with `--dangerously-load-development-channels server:super-talk`, and messages surface on the agent's next turn (no auto-wake).
+- `claude/channel` injection requires launching Claude Code with `--dangerously-load-development-channels plugin:super-talk@super-talk`, and messages surface on the agent's next turn (no auto-wake).

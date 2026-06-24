@@ -53,6 +53,7 @@ export function Shell({ me, onSignOut }: { me: string; onSignOut: () => void }):
         me={me}
         channelId={activeId}
         channelName={active?.name ?? activeId}
+        online={online}
         typingUsers={typingHere}
         markRead={markRead}
       />

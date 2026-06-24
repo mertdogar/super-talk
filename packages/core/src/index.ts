@@ -28,6 +28,14 @@ export type Delivery = z.infer<typeof DeliverySchema>;
 export const AgentInfoSchema = z.object({ name: z.string(), online: z.boolean() });
 export type AgentInfo = z.infer<typeof AgentInfoSchema>;
 
+/** A channel participant (as stored in a `members:<channelId>` Resource). */
+export const MemberSchema = z.object({
+  name: z.string(),
+  role: z.enum(["user", "agent"]),
+  lastSeen: z.number(),
+});
+export type Member = z.infer<typeof MemberSchema>;
+
 /** The `channels` index Resource shape (read by the UI via useResource). */
 export interface ChannelsDoc {
   channels: Channel[];
@@ -35,6 +43,10 @@ export interface ChannelsDoc {
 /** A `messages:<channelId>` Resource shape (read by the UI via useResource). */
 export interface MessagesDoc {
   items: Message[];
+}
+/** A `members:<channelId>` Resource shape — everyone who has joined/spoken (read by the UI for @mentions). */
+export interface MembersDoc {
+  members: Member[];
 }
 
 /**

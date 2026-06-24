@@ -11,6 +11,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.18.0",
+    "@codemirror/commands": "^6.7.0",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/view": "^6.34.0",
     "@radix-ui/react-dialog": "^1.1.6",
     "@super-line/client": "^0.5.0",
     "@super-line/core": "^0.5.0",

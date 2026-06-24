@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Hash, Send } from 'lucide-react'
 import { Avatar } from '@/components/avatar'
+import { ComposerInput } from '@/components/composer-input/composer-input'
+import type { MentionGroup } from '@/components/composer-input/types'
+import { MessageText } from '@/components/message-text'
 import { Button } from '@/components/ui/button'
-import { ChatInput } from '@/components/ui/chat/chat-input'
 import { ChatMessageList } from '@/components/ui/chat/chat-message-list'
-import type { Message, MessagesDoc } from '@/contract'
+import type { Member, Message, MembersDoc, MessagesDoc } from '@/contract'
 import type { ReadState } from '@/hooks/use-read-state'
 import { useRequest, useResource } from '@/lib/superline'
 import { cn } from '@/lib/utils'
@@ -15,6 +17,7 @@ interface ChannelViewProps {
   me: string
   channelId: string
   channelName: string
+  online: string[]
   typingUsers: string[]
   markRead: ReadState['markRead']
 }
@@ -23,12 +26,21 @@ export function ChannelView({
   me,
   channelId,
   channelName,
+  online,
   typingUsers,
   markRead,
 }: ChannelViewProps): React.JSX.Element {
   const { data } = useResource<MessagesDoc>('chat', `messages:${channelId}`)
   const items = data?.items ?? []
   const latestAt = items.length ? items[items.length - 1]!.at : 0
+
+  // @mention roster: persisted channel members (each carries a role) unioned with anyone currently
+  // online but not yet a member (treated as a person). Self is excluded.
+  const { data: membersDoc } = useResource<MembersDoc>('chat', `members:${channelId}`)
+  const mentions = useMemo(
+    () => buildMentionGroups(membersDoc?.members ?? [], online, me),
+    [membersDoc, online, me],
+  )
 
   // viewing a channel marks it read up to its newest message
   useEffect(() => {
@@ -60,6 +72,7 @@ export function ChannelView({
 
       <Composer
         channelName={channelName}
+        mentions={mentions}
         onSend={(text) => void send({ channel: channelId, text }).catch(() => {})}
         onType={() => void ping({ channel: channelId }).catch(() => {})}
       />
@@ -121,7 +134,7 @@ function MessageRow({
           </div>
         )}
         <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-foreground">
-          {m.text}
+          <MessageText text={m.text} />
         </div>
       </div>
     </div>
@@ -192,10 +205,12 @@ function Dot({ delay }: { delay: string }): React.JSX.Element {
 
 function Composer({
   channelName,
+  mentions,
   onSend,
   onType,
 }: {
   channelName: string
+  mentions: MentionGroup[]
   onSend: (text: string) => void
   onType: () => void
 }): React.JSX.Element {
@@ -209,13 +224,6 @@ function Composer({
     onSend(trimmed)
   }
 
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      submit()
-    }
-  }
-
   const onChange = (value: string) => {
     setText(value)
     const now = Date.now()
@@ -227,20 +235,54 @@ function Composer({
 
   return (
     <div className="px-4 pb-4">
-      <div className="flex items-end gap-2 rounded-lg border border-input bg-background p-1.5 shadow-sm focus-within:ring-2 focus-within:ring-ring">
-        <ChatInput
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          submit()
+        }}
+        className="flex items-end gap-2 rounded-lg border border-input bg-background px-2 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-ring"
+      >
+        <ComposerInput
           value={text}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={`Message #${channelName}`}
-          className="h-auto max-h-40 min-h-[40px] resize-none border-0 shadow-none focus-visible:ring-0"
+          onChange={onChange}
+          mentions={mentions}
+          submitOnEnter
+          maxHeight={160}
+          placeholder={`Message #${channelName} — @ to mention`}
+          ariaLabel={`Message #${channelName}`}
         />
-        <Button size="icon" onClick={submit} disabled={!text.trim()} aria-label="Send message">
+        <Button type="submit" size="icon" disabled={!text.trim()} aria-label="Send message">
           <Send className="h-4 w-4" />
         </Button>
-      </div>
+      </form>
     </div>
   )
+}
+
+/** Build the two-section (@Agents / @People) mention vocabulary from the channel roster, unioned
+ * with anyone currently online but not yet a member (treated as a person). Excludes `me`. */
+function buildMentionGroups(members: Member[], online: string[], me: string): MentionGroup[] {
+  const byName = new Map<string, Member['role']>()
+  for (const m of members) byName.set(m.name, m.role)
+  for (const name of online) if (!byName.has(name)) byName.set(name, 'user')
+  byName.delete(me)
+
+  const onlineSet = new Set(online)
+  const itemsFor = (role: Member['role']) =>
+    [...byName.entries()]
+      .filter(([, r]) => r === role)
+      .map(([name]) => name)
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({
+        id: `${role}:${name}`,
+        name,
+        detail: onlineSet.has(name) ? 'online' : undefined,
+      }))
+
+  return [
+    { label: 'Agents', items: itemsFor('agent') },
+    { label: 'People', items: itemsFor('user') },
+  ].filter((g) => g.items.length > 0)
 }
 
 function timeLong(at: number): string {

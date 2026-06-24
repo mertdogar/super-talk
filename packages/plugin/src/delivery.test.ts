@@ -20,6 +20,19 @@ it("maps a channel message to a channel notification", () => {
   });
 });
 
+it("flattens @[name](id) mention tokens to @name in content and thread context", () => {
+  const note = channelNotificationFor(
+    {
+      ...base,
+      text: "hey @[backend-bot](agent:backend-bot) look",
+      recent: [{ id: "m0", from: "b", text: "ping @[Alice Doe](user:Alice Doe)", at: 0 }],
+    },
+    "me",
+  );
+  expect(note!.content).toBe("hey @backend-bot look");
+  expect(note!.meta.thread).toBe("b: ping @Alice Doe");
+});
+
 it("flattens recent thread context into a string (meta must be all strings)", () => {
   const note = channelNotificationFor(
     {
