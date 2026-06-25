@@ -22428,7 +22428,8 @@ var TOOLS = [
       type: "object",
       properties: {
         name: { type: "string", description: 'This agent\u2019s unique name (e.g. "backend-bot").' },
-        channels: { type: "array", items: { type: "string" }, description: "Channels to join." }
+        channels: { type: "array", items: { type: "string" }, description: "Channels to join." },
+        url: { type: "string", description: "Hub URL (defaults to the saved/env URL or localhost)." }
       }
     }
   },
@@ -22506,13 +22507,17 @@ async function runTool(name, args) {
       const agentName = args.name || ENV_NAME || saved?.name || "";
       if (!agentName) throw new Error("no name given and SUPERTALK_AGENT_NAME is not set");
       const channels = args.channels;
+      const url = args.url || ENV_URL || saved?.url || DEFAULT_URL;
       if (client) {
+        if (args.name && agentName !== selfName) {
+          client.close();
+          return connect(agentName, url, channels);
+        }
         const res = await client.join({ channels });
         joinedChannels = res.channels;
         persist();
         return res;
       }
-      const url = ENV_URL || saved?.url || DEFAULT_URL;
       return connect(agentName, url, channels);
     }
     case "send":

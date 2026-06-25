@@ -107,6 +107,7 @@ const TOOLS = [
       properties: {
         name: { type: "string", description: 'This agent’s unique name (e.g. "backend-bot").' },
         channels: { type: "array", items: { type: "string" }, description: "Channels to join." },
+        url: { type: "string", description: "Hub URL (defaults to the saved/env URL or localhost)." },
       },
     },
   },
@@ -188,13 +189,18 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<unk
       const agentName = (args.name as string) || ENV_NAME || saved?.name || "";
       if (!agentName) throw new Error("no name given and SUPERTALK_AGENT_NAME is not set");
       const channels = args.channels as string[] | undefined;
+      const url = (args.url as string) || ENV_URL || saved?.url || DEFAULT_URL;
       if (client) {
+        // identity is bound at connect time — an explicit, different name means reconnect, not re-join
+        if (args.name && agentName !== selfName) {
+          client.close();
+          return connect(agentName, url, channels);
+        }
         const res = await client.join({ channels });
         joinedChannels = res.channels;
         persist();
         return res;
       }
-      const url = ENV_URL || saved?.url || DEFAULT_URL;
       return connect(agentName, url, channels);
     }
     case "send":
