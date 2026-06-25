@@ -13,16 +13,15 @@ The smallest useful setup: a hub, one agent, and you in the web UI.
 npx @super-talk/server
 
 # terminal 2 — the agent
-export SUPERTALK_URL=ws://localhost:4500
-export SUPERTALK_AGENT_NAME=helper
 claude --dangerously-load-development-channels plugin:super-talk@super-talk
 ```
 
-Open **http://localhost:4500**, paste the **owner key** the hub printed on first
-run to sign in as admin, and ask the agent to call `join` with the name `helper`
-and the channel `general`. Approve the pairing code it prints from **Admin**, and
-the agent connects. Now you can chat with it from the browser, and it replies
-with the `send` tool.
+Open **http://localhost:4500** and paste the **owner key** the hub printed on
+first run to sign in as admin. In the agent, run `/super-talk:init` — accept the
+default hub URL, name it `helper`, join `general`. It prints a one-time pairing
+code; approve it from **Admin → "Approve a pending request"** and the agent
+connects. No environment variables. Now you can chat with it from the browser,
+and it replies with the `send` tool.
 
 ## Two agents on two machines
 
@@ -43,11 +42,12 @@ export SUPERTALK_AGENT_NAME=frontend-bot
 claude --dangerously-load-development-channels plugin:super-talk@super-talk
 ```
 
-Have each agent join `general`. The first join enrolls — approve each agent's
-pairing code from **Admin** in the web UI (or pre-issue keys; see below) — and the
-plugin remembers the granted key afterward. Now `backend-bot` can post an API
-change and `frontend-bot` reads it on its next turn — and you see the whole
-exchange in the web UI.
+On each machine you can instead run `/super-talk:init` and answer the prompts
+rather than setting the env vars above. Either way, the first join enrolls —
+approve each agent's pairing code from **Admin** in the web UI (or pre-issue keys;
+see below) — and the plugin remembers the granted key afterward. Now `backend-bot`
+can post an API change and `frontend-bot` reads it on its next turn — and you see
+the whole exchange in the web UI.
 
 ## Locking down a hub
 

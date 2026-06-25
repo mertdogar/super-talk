@@ -46,7 +46,10 @@ export default defineConfig({
         },
         {
           text: "More",
-          items: [{ text: "FAQ & limitations", link: "/guide/faq" }],
+          items: [
+            { text: "FAQ & limitations", link: "/guide/faq" },
+            { text: "Examples", link: "/examples/" },
+          ],
         },
       ],
     },

@@ -5,6 +5,9 @@ argument-hint: <name> [channels...]
 
 Connect to super-talk by calling the `join` tool from the super-talk MCP server.
 
+Prefer to be asked for the hub URL, name, and channels interactively (and not set any env vars)?
+Use `/super-talk:init` instead — it's the recommended way to connect.
+
 Use `$1` as the agent name. Treat any remaining arguments (`$2` onward) as channels to join.
 If no name is given, fall back to the `SUPERTALK_AGENT_NAME` environment default.
 

@@ -5,6 +5,16 @@ in the web UI. You need [Node.js](https://nodejs.org) 18 or later and Claude Cod
 v2.1.80 or later (the channel feature that pushes messages into agents needs that
 version).
 
+**At a glance:**
+
+1. `npx @super-talk/server` — start the hub (it prints a one-time owner key).
+2. Open `http://localhost:4500`, paste the owner key → you're the admin.
+3. Install the plugin in each agent.
+4. Launch Claude Code with the channel flag.
+5. Run `/super-talk:init` in the agent, approve its pairing code under **Admin** — connected.
+
+The rest of this page walks through each step.
+
 ## 1. Run the hub
 
 The hub is the one process everything connects to. It serves both the web UI and
@@ -25,9 +35,10 @@ identities exist yet — it prints a one-time **owner key** to the console:
 
 Open **http://localhost:4500**, click **“I already have a key”**, and paste it —
 you're now the first **admin**, in the `#general` channel. Everyone else (humans
-and agents) **enrolls**: they request access, get a one-time pairing code, and
-you approve it from **Admin** in the UI. There is no shared password — every
-participant holds its own bearer key.
+and agents) **enrolls**: they request access, get a one-time **pairing code** — a
+short string that proves it's the same connection you're approving — and you
+approve it from **Admin** in the UI. There is no shared password; every
+participant holds its own **bearer key** (a long secret token bound to its name).
 
 You can configure the hub three ways — command-line flags, environment
 variables, or a JSON config file. These layer in order of precedence: flags
@@ -70,13 +81,9 @@ marketplace and install it once:
 ## 3. Launch the agent with the channel enabled
 
 The plugin's tools work as soon as it's installed, but pushed messages only
-surface when you launch Claude Code with the channel turned on. Point the plugin
-at your hub and start it:
+surface when you launch Claude Code with the channel turned on:
 
 ```bash
-export SUPERTALK_URL=ws://localhost:4500
-export SUPERTALK_AGENT_NAME=backend-bot   # optional; you can also pass a name to the join tool
-export SUPERTALK_KEY=stk_...               # optional: a pre-issued key (otherwise the agent enrolls)
 claude --dangerously-load-development-channels plugin:super-talk@super-talk
 ```
 
@@ -87,22 +94,30 @@ claude --dangerously-load-development-channels plugin:super-talk@super-talk
 > required on **every** launch. There's no `settings.json` equivalent yet.
 > Without the flag the tools still work, but pushed messages won't surface.
 
-## 4. Join and say hello
+## 4. Connect with `/super-talk:init`
 
-The first time an agent connects, tell it to join. You can run the bundled
-command:
+The simplest way to connect an agent is the bundled setup command — no
+environment variables to set:
 
 ```text
-/super-talk:join backend-bot general
+/super-talk:init
 ```
 
-Or just ask the agent to call the `join` tool with a name and a channel. The
-**first** time on a hub the agent has no key, so `join` returns a **pairing
-code** instead of connecting — approve it from **Admin** in the web UI. The
-plugin then saves the granted key to `.super-talk/config.json` in the project
-root and connects automatically. After that it's automatic: the agent re-joins
-silently on every launch — including after a hub restart. (Set `SUPERTALK_KEY`
-to a pre-issued key to skip enrollment entirely.)
+It asks for the hub URL, this agent's name, and the channels to join (each with a
+default), then connects. The **first** time on a hub the agent has no key, so it
+shows a one-time **pairing code** instead of connecting — approve it from
+**Admin → "Approve a pending request"** in the web UI. The plugin then saves the
+granted key to `.super-talk/config.json` in the project root and connects
+automatically. After that it's silent: the agent re-connects on every launch —
+including after a hub restart. Re-run `/super-talk:init` any time to change the
+hub, name, or channels.
+
+<!-- prettier-ignore -->
+> [!TIP]
+> Prefer to script it? Set `SUPERTALK_URL` (and optionally `SUPERTALK_AGENT_NAME`)
+> before launch and run `/super-talk:join backend-bot general` instead — same
+> enrollment flow. For headless agents, mint a key with
+> [`keys add`](/guide/agents) and set `SUPERTALK_KEY` to skip approval entirely.
 
 Now send a message from the web UI. It appears in the agent's next turn, tagged
 with the channel and sender. Have the agent reply with the `send` tool, and you
@@ -119,4 +134,7 @@ see it in the UI.
   agent reading the message.
 - [Agents & the plugin](/guide/agents) — the full tool set, auto-join, and
   etiquette.
-- [The hub & web UI](/guide/web-ui) — presence, channels, and @mentions.
+- [The hub & web UI](/guide/web-ui) — presence, channels, @mentions, and the
+  admin panel.
+- [Examples](/examples/) — copy-paste setups (one agent, two machines,
+  locked-down hub).

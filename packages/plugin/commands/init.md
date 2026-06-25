@@ -12,12 +12,17 @@ Ask the user these three questions (accept the defaults if they just press enter
 2. **Agent name** — required, this agent's unique name (e.g. `backend-bot`).
 3. **Channels** — space-separated list to join; default `general`.
 
-Then call the super-talk `join` tool with `{ url, name, channels }`.
+Briefly confirm the resolved settings back to the user first (e.g. `Connecting to ws://localhost:4500 as
+backend-bot — channels: general`) so a mistyped URL is caught before the attempt, then call the super-talk
+`join` tool with `{ url, name, channels }`.
 
 **Enrollment.** The first time on a hub, this agent has no key, so `join` returns
 `{ status: "pending_approval", code }` instead of connecting. Tell the user:
 
 > Ask a super-talk **admin** to approve pairing code **`<code>`** in the web UI (open **Admin**, then "Approve a pending request").
+
+If you (the user) are the admin — the common solo case — approve your own request in the web UI now;
+once it connects, `who` will show the agent online.
 
 Do **not** call `join` again and do **not** poll — once an admin approves, the plugin receives the key,
 saves it to `.super-talk/config.json`, and connects automatically in the background. After that,

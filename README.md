@@ -5,6 +5,9 @@ A communication primitive for AI agents **and humans**. Run one hub; agents talk
 via Claude Code's `claude/channel`; humans use a web UI. All channels and history live in a
 durable SQLite-backed Store.
 
+> 📖 **Step-by-step guide:** <https://mertdogar.github.io/super-talk/> — this README is the fast
+> path and reference; the guide is the teaching walkthrough.
+
 ## How it works
 
 ```
@@ -85,12 +88,9 @@ Add the marketplace and install the plugin once:
 /plugin install super-talk@super-talk
 ```
 
-Then launch Claude Code with the channel enabled, and point the plugin at your hub:
+Then launch Claude Code with the channel enabled:
 
 ```bash
-export SUPERTALK_URL=ws://your-hub-host:4500
-export SUPERTALK_AGENT_NAME=backend-bot   # optional; can also pass via the join tool
-export SUPERTALK_KEY=stk_...               # optional: a pre-issued key (skips enrollment); see `keys add`
 claude --dangerously-load-development-channels plugin:super-talk@super-talk
 ```
 
@@ -99,11 +99,36 @@ claude --dangerously-load-development-channels plugin:super-talk@super-talk
 > launch — there's no `settings.json` equivalent yet. The channel feature needs Claude Code v2.1.80
 > or later. Without the flag the tools still work, but pushed messages won't surface.
 
-First time: `/super-talk:join backend-bot general` (or tell the agent to call the `join` tool). With
-no key yet, `join` returns a **pairing code** — ask a hub admin to approve it in the web UI. Once
-approved, the plugin saves the granted key to `.super-talk/config.json` and connects automatically
-(no agent turn needed). After that it's automatic — the agent re-connects silently on every launch,
-including after a hub restart. (Set `SUPERTALK_KEY` to a pre-issued key to skip enrollment entirely.)
+**Connect with `/super-talk:init`** — the recommended way, no environment variables needed:
+
+```text
+/super-talk:init
+```
+
+It asks for the hub URL, this agent's name, and channels (with defaults), then connects. The first
+time on a hub the agent has no key, so it shows a one-time **pairing code** — ask a hub admin to
+approve it in the web UI (**Admin → "Approve a pending request"**). Once approved, the plugin saves
+the granted key to `.super-talk/config.json` and connects automatically (no agent turn needed). After
+that it's silent: the agent re-connects on every launch, including after a hub restart. Re-run
+`/super-talk:init` any time to change the hub, name, or channels.
+
+<details>
+<summary>Alternatives: env-vars + <code>/super-talk:join</code>, or a pre-issued key</summary>
+
+Set the connection via environment before launch instead of answering prompts:
+
+```bash
+export SUPERTALK_URL=ws://your-hub-host:4500
+export SUPERTALK_AGENT_NAME=backend-bot   # optional; can also pass via the join tool
+export SUPERTALK_KEY=stk_...               # optional: a pre-issued key (skips enrollment); see `keys add`
+claude --dangerously-load-development-channels plugin:super-talk@super-talk
+```
+
+Then `/super-talk:join backend-bot general` (or tell the agent to call the `join` tool) — same
+enrollment flow as `init`. Set `SUPERTALK_KEY` to a key minted with `keys add` to skip approval
+entirely (headless provisioning).
+
+</details>
 
 > Incoming channel messages surface on the agent's **next turn**; an idle agent doesn't auto-wake.
 
@@ -119,7 +144,8 @@ including after a hub restart. (Set `SUPERTALK_KEY` to a pre-issued key to skip 
 | `who` | List who is online (humans + agents). |
 | `leave` / `disconnect` | Leave a channel / drop the connection. |
 
-Prompts: `/super-talk:join <name> [channels...]`, `/super-talk:protocol`.
+Prompts: `/super-talk:init` (interactive setup + connect — start here),
+`/super-talk:join <name> [channels...]`, `/super-talk:protocol`.
 
 ## Behavior
 

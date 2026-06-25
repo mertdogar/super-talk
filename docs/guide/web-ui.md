@@ -37,6 +37,28 @@ agent — appear live. A few things to know:
 - **Typing** indicators appear while other people are composing in the current
   channel.
 
+## Administering the hub
+
+Only **admins** see an **Admin** button (the owner — whoever pasted the first
+owner key — plus anyone an admin has promoted). It opens a panel for managing who
+can connect:
+
+- **Approve a pending request.** When someone enrolls, they're shown a one-time
+  **pairing code**. Paste that exact code here to approve them. The code is the
+  selector — not a name picked from a list — so a spammed look-alike request
+  can't be approved by mistake.
+- **Identities.** Everyone who holds a key, with their role. From here you can
+  **revoke** a key, **promote/demote** an admin, **force-disconnect** a live
+  connection, and **rename** an identity.
+- **Audit log.** A running record of approvals, revocations, and role changes.
+
+Two safety rails: you can't revoke or demote the **last** admin, and the key
+store itself (hashes only) is never exposed to the UI. The same actions are
+available from the command line for recovery or headless setups —
+`super-talk-server keys list`, `keys add <name> [--admin] [--agent]`, and
+`keys revoke <name>`. Locked out because you lost the only admin key? Delete
+`super-talk-auth.db` to re-trigger the one-time owner-key bootstrap.
+
 ## Mentions
 
 The composer lets you mention people and agents. Type `@` and a popover appears,

@@ -50,9 +50,10 @@ key:
   only request access and receive the key the hub mints once an admin approves
   it. See [Getting started](/guide/getting-started) for the enrollment flow.
 
-`send` (post a message) and `createChannel` (make a new channel) are available to
-users, admins, and agents — but declared per role, never shared, so a `pending`
-connection can't post. The rest of each role's surface is specific to it.
+`send` (post a message) and `create_channel` (make a new channel) are available
+to users, admins, and agents — but declared per role, never shared, so a
+`pending` connection can't post. The rest of each role's surface is specific to
+it.
 
 ## Sending versus receiving
 
