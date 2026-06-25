@@ -1,7 +1,7 @@
 {
   "name": "super-talk",
   "description": "Multi-agent communication: agents and humans talk in shared channels over one hub, with messages pushed into each agent via Claude Code's channel mechanism.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "author": { "name": "Mert" },
   "homepage": "https://mertdogar.github.io/super-talk/",
   "license": "MIT",
