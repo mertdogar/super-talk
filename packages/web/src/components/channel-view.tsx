@@ -6,6 +6,7 @@ import type { MentionGroup } from "@/components/composer-input/types";
 import { MessageText } from "@/components/message-text";
 import { Button } from "@/components/ui/button";
 import { ChatMessageList } from "@/components/ui/chat/chat-message-list";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { Member, Message, MembersDoc, MessagesDoc } from "@/contract";
 import type { ReadState } from "@/hooks/use-read-state";
 import { useRequest, useResource } from "@/lib/superline";
@@ -39,10 +40,12 @@ export function ChannelView({
   // @mention roster: persisted channel members (each carries a role) unioned with anyone currently
   // online but not yet a member (treated as a person). Self is excluded.
   const { data: membersDoc } = useResource<MembersDoc>("chat", `members:${channelId}`);
+  const members = membersDoc?.members ?? [];
   const mentions = useMemo(
-    () => buildMentionGroups(membersDoc?.members ?? [], online, me),
-    [membersDoc, online, me],
+    () => buildMentionGroups(members, online, me),
+    [members, online, me],
   );
+  const [membersOpen, setMembersOpen] = useState(false);
 
   // viewing a channel marks it read up to its newest message
   useEffect(() => {
@@ -65,7 +68,22 @@ export function ChannelView({
         <Hash className="h-5 w-5 text-muted-foreground" />
         <h2 className="font-bold text-foreground">{channelName}</h2>
         <span className="text-sm text-muted-foreground">· {items.length} messages</span>
+        <button
+          onClick={() => setMembersOpen(true)}
+          className="rounded text-sm text-muted-foreground hover:text-foreground hover:underline"
+        >
+          · {members.length} {members.length === 1 ? "member" : "members"}
+        </button>
       </header>
+
+      <MembersSheet
+        open={membersOpen}
+        onOpenChange={setMembersOpen}
+        channelName={channelName}
+        members={members}
+        online={online}
+        me={me}
+      />
 
       {data === undefined ? (
         <div className="grid flex-1 place-items-center text-sm text-muted-foreground">
@@ -277,6 +295,65 @@ function Composer({
         </Button>
       </form>
     </div>
+  );
+}
+
+function MembersSheet({
+  open,
+  onOpenChange,
+  channelName,
+  members,
+  online,
+  me,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  channelName: string;
+  members: Member[];
+  online: string[];
+  me: string;
+}): React.JSX.Element {
+  const onlineSet = new Set(online);
+  const rows = [...members].sort((a, b) => {
+    const ao = onlineSet.has(a.name) ? 0 : 1;
+    const bo = onlineSet.has(b.name) ? 0 : 1;
+    return ao - bo || a.name.localeCompare(b.name);
+  });
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" title="Members" className="bg-background">
+        <div className="border-b px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <h2 className="font-bold text-foreground">Members</h2>
+          <p className="text-sm text-muted-foreground">#{channelName}</p>
+        </div>
+        <ul className="flex-1 overflow-y-auto p-2">
+          {rows.map((m) => {
+            const isOnline = onlineSet.has(m.name);
+            return (
+              <li key={m.name} className="flex items-center gap-3 rounded px-2 py-1.5">
+                <span className="relative">
+                  <Avatar name={m.name} size={32} />
+                  <span
+                    className={cn(
+                      "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full shadow-[0_0_0_2px_var(--background)]",
+                      isOnline ? "bg-online" : "bg-muted-foreground/40",
+                    )}
+                  />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[15px] text-foreground">
+                  {m.name}
+                  {m.name === me && (
+                    <span className="ml-1 text-xs text-muted-foreground">(you)</span>
+                  )}
+                </span>
+                <span className="text-xs text-muted-foreground">{m.role}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </SheetContent>
+    </Sheet>
   );
 }
 
