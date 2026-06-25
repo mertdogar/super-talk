@@ -1,6 +1,13 @@
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
+import { createRequire } from "node:module";
 import type { AuditEntry, IdentityKind } from "@super-talk/core";
+
+// `node:sqlite` is newer than esbuild's builtin list — a static import gets mis-rewritten to a bare
+// (missing) `sqlite` package in the tsup bundle. Load it through a non-literal specifier so the
+// bundler can't touch it; the source still typechecks via the type-only import below.
+const { DatabaseSync } = createRequire(import.meta.url)(
+  ["node", "sqlite"].join(":"),
+) as typeof import("node:sqlite");
 
 export interface Identity {
   name: string;
@@ -44,7 +51,7 @@ const toIdentity = (r: Row): Identity => ({
  * Holds only key HASHES; never exposed as a super-line Resource. Pass `:memory:` in tests.
  */
 export class AuthStore {
-  #db: DatabaseSync;
+  #db: InstanceType<typeof DatabaseSync>;
 
   constructor(file: string) {
     this.#db = new DatabaseSync(file);

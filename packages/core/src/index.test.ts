@@ -20,5 +20,5 @@ it("scopes the admin surface to the `admin` role only", () => {
 });
 
 it("does NOT use a shared section (which pending would inherit)", () => {
-  expect(api.shared).toBeUndefined();
+  expect((api as Record<string, unknown>).shared).toBeUndefined();
 });

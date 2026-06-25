@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { AuthStore } from "./auth-store.js";
 import { loadConfig } from "./config.js";
 import { createHub } from "./index.js";
 
@@ -12,6 +13,40 @@ function version(): string {
   } catch {
     return "";
   }
+}
+
+// `keys` subcommand — manage identities offline (recovery / headless provisioning), without the hub.
+if (process.argv[2] === "keys") {
+  const [, , , sub, name] = process.argv;
+  const flags = process.argv.slice(4);
+  const auth = new AuthStore(process.env.SUPERTALK_AUTH_DB || "./super-talk-auth.db");
+  if (sub === "list") {
+    for (const id of auth.list()) {
+      const tags = [id.kind, id.isAdmin && "admin", id.lastSeenAt ? "seen" : "never-used"]
+        .filter(Boolean)
+        .join(", ");
+      console.log(`${id.isAdmin ? "★" : "·"} ${id.name}  (${tags})`);
+    }
+  } else if (sub === "add" && name) {
+    const kind = flags.includes("--agent") ? "agent" : "user";
+    const key = auth.issue(name, kind, flags.includes("--admin"));
+    console.log(
+      `issued "${name}" (${kind}${flags.includes("--admin") ? ", admin" : ""}):\n\n    ${key}\n`,
+    );
+  } else if (sub === "revoke" && name) {
+    if (!auth.byName(name)) {
+      console.error(`no identity "${name}"`);
+      process.exit(1);
+    }
+    auth.revoke(name);
+    console.log(`revoked "${name}"`);
+  } else {
+    console.log(
+      "usage: super-talk-server keys <list | add <name> [--admin] [--agent] | revoke <name>>",
+    );
+  }
+  auth.close();
+  process.exit(0);
 }
 
 const { exit, options } = loadConfig(process.argv.slice(2), process.env, process.cwd(), version());

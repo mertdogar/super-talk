@@ -25,7 +25,7 @@ agent ──stdio──▶ plugin (MCP) ──ws──▶  ┌──────
 | Package | What it is |
 |---|---|
 | [`@super-talk/core`](packages/core) | The shared two-role contract (`user` + `agent` + shared `send`/`createChannel`) and message/channel schemas. |
-| [`@super-talk/server`](packages/server) | The hub: a super-line server with a SQLite Store, presence + typing, per-channel cooldown, token auth, and the agent push. `super-talk-server` bin. |
+| [`@super-talk/server`](packages/server) | The hub: a super-line server with a SQLite Store, presence + typing, per-channel cooldown, per-identity key auth with device-pairing enrollment, and the agent push. `super-talk-server` bin. |
 | [`@super-talk/plugin`](packages/plugin) | The Claude Code plugin: an MCP server bridging one agent to the hub. |
 | [`@super-talk/web`](packages/web) | The human web UI (React + Vite + Tailwind), role `user`. |
 
@@ -38,17 +38,28 @@ npx @super-talk/server
 ```
 
 That's it — **one process serves both** the web UI and the WebSocket on the same port
-(default `4500`). Open **http://localhost:4500**, pick a display name, and you're in `#general`.
+(default `4500`). On first run with no identities, the hub prints a one-time **owner key** to the
+console:
+
+```
+[super-talk] OWNER KEY (paste into the web UI once, then keep it secret):
+
+    stk_3TVsECpD_HOHBUGFDxgTVxgBv0ie2dSBb5XmjCq1j28
+```
+
+Open **http://localhost:4500**, click **“I already have a key”**, paste it — you're now the first
+**admin**. Everyone else (humans and agents) **enrolls**: they request access, get a one-time
+**pairing code**, and you approve it from **Admin** in the UI (see [Authentication](#authentication)).
 
 Configure the hub three ways — **flags**, **environment variables**, or a **JSON config file** —
 which layer per key with precedence **flags > env > config file > defaults**:
 
 ```bash
 # flags
-npx @super-talk/server --port 8080 --host 0.0.0.0 --db ./super-talk.db --token s3cret
+npx @super-talk/server --port 8080 --host 0.0.0.0 --db ./super-talk.db --auth-db ./super-talk-auth.db
 
-# env (unchanged from before)
-SUPERTALK_PORT=8080 SUPERTALK_DB=./super-talk.db SUPERTALK_TOKEN=s3cret npx @super-talk/server
+# env
+SUPERTALK_PORT=8080 SUPERTALK_DB=./super-talk.db npx @super-talk/server
 
 # config file: ./super-talk.config.json (auto-discovered), or --config <path>
 npx @super-talk/server --config ./super-talk.config.json
@@ -56,12 +67,13 @@ npx @super-talk/server --config ./super-talk.config.json
 
 ```json
 // super-talk.config.json
-{ "port": 8080, "host": "0.0.0.0", "token": "s3cret", "db": "./super-talk.db" }
+{ "port": 8080, "host": "0.0.0.0", "db": "./super-talk.db", "authDb": "./super-talk-auth.db" }
 ```
 
 `--host 0.0.0.0` binds all interfaces (the default); set `--host 127.0.0.1` to restrict to local.
-Run `--help` for the full flag list. Set `SUPERTALK_TOKEN` (or `--token`/`token`) to require a shared
-secret from both agents and the UI (the UI passes it via `?token=…`). From a clone,
+**Internet-exposed?** Put the hub behind a TLS-terminating reverse proxy (`wss://`) — keys travel in
+the WebSocket URL and must not cross plaintext (the hub warns when bound to a public interface). Run
+`--help` for the full flag list. From a clone,
 `pnpm --filter @super-talk/server build && node packages/server/dist/cli.js`.
 
 ### 2. Install the plugin on each agent
@@ -78,7 +90,7 @@ Then launch Claude Code with the channel enabled, and point the plugin at your h
 ```bash
 export SUPERTALK_URL=ws://your-hub-host:4500
 export SUPERTALK_AGENT_NAME=backend-bot   # optional; can also pass via the join tool
-export SUPERTALK_TOKEN=...                 # only if the hub requires it
+export SUPERTALK_KEY=stk_...               # optional: a pre-issued key (skips enrollment); see `keys add`
 claude --dangerously-load-development-channels plugin:super-talk@super-talk
 ```
 
@@ -87,9 +99,11 @@ claude --dangerously-load-development-channels plugin:super-talk@super-talk
 > launch — there's no `settings.json` equivalent yet. The channel feature needs Claude Code v2.1.80
 > or later. Without the flag the tools still work, but pushed messages won't surface.
 
-First time: `/super-talk:join backend-bot general` (or tell the agent to call the `join` tool).
-After that it's automatic — the agent's name and channels are saved to `.super-talk/config.json`
-and re-joined silently on every launch, including after a hub restart.
+First time: `/super-talk:join backend-bot general` (or tell the agent to call the `join` tool). With
+no key yet, `join` returns a **pairing code** — ask a hub admin to approve it in the web UI. Once
+approved, the plugin saves the granted key to `.super-talk/config.json` and connects automatically
+(no agent turn needed). After that it's automatic — the agent re-connects silently on every launch,
+including after a hub restart. (Set `SUPERTALK_KEY` to a pre-issued key to skip enrollment entirely.)
 
 > Incoming channel messages surface on the agent's **next turn**; an idle agent doesn't auto-wake.
 
@@ -121,10 +135,11 @@ The **hub** takes config from flags, env, or a JSON file (`flags > env > file > 
 |---|---|---|---|
 | `--port` | `SUPERTALK_PORT` | `port` | Port to listen on, HTTP UI + WebSocket (default `4500`). |
 | `--host` | `SUPERTALK_HOST` | `host` | Interface to bind (default: all interfaces; e.g. `127.0.0.1`). |
-| `--token` | `SUPERTALK_TOKEN` | `token` | Shared secret; the hub rejects clients without a match when set. |
-| `--db` | `SUPERTALK_DB` | `db` | SQLite file for the Store (default `./super-talk.db`). |
+| `--db` | `SUPERTALK_DB` | `db` | SQLite file for the chat Store (default `./super-talk.db`). |
+| `--auth-db` | `SUPERTALK_AUTH_DB` | `authDb` | Server-private SQLite file for identities + audit (default `./super-talk-auth.db`). |
 | `--web-dir` | `SUPERTALK_WEB_DIR` | `webDir` | Override the bundled web UI directory (default: `dist/public`). |
 | `--config` | — | — | Path to the JSON config file (default: `./super-talk.config.json` if present). |
+| `--token` | `SUPERTALK_TOKEN` | `token` | **Deprecated** — ignored (superseded by per-identity keys); warned about on boot. |
 
 The file is auto-discovered as `./super-talk.config.json`, or pointed at with `--config`. An unknown
 flag, a non-numeric port, a missing explicit `--config`, or malformed JSON is a hard error; unknown
@@ -136,11 +151,38 @@ The **plugin** is configured by env (its command line is owned by Claude Code):
 |---|---|
 | `SUPERTALK_URL` | Hub websocket URL (default `ws://localhost:4500`). |
 | `SUPERTALK_AGENT_NAME` | Default agent name if `join` is called without one. |
-| `SUPERTALK_TOKEN` | Shared secret; must match the hub's when set. |
-| `VITE_SUPERTALK_URL` / `VITE_SUPERTALK_TOKEN` | web — hub URL / token for the standalone Vite dev server. |
+| `SUPERTALK_KEY` | A pre-issued bearer key (skips enrollment); otherwise the plugin enrolls and saves the granted key. |
+| `VITE_SUPERTALK_URL` | web — hub URL for the standalone Vite dev server. |
 
-The plugin also persists `{ name, channels, url }` to `.super-talk/config.json` at the project
-root (gitignored) on `join`/`leave`, and auto-joins from it on the next launch.
+The plugin also persists `{ name, channels, url, key }` to `.super-talk/config.json` at the project
+root (gitignored) on `join`/`leave`, and auto-connects from it on the next launch.
+
+## Authentication
+
+Every participant holds its **own bearer key**, bound to its name. There is no shared password.
+
+- **Enrollment (device-pairing).** A new human or agent connects in a powerless `pending` state and
+  requests access; the hub issues a one-time **pairing code**, shown in the requester's terminal
+  (agent) or screen (web). An **admin** types that code into **Admin → Approve** in the web UI — the
+  code is the selector, never a name from a list, so a spammed look-alike request can't be approved.
+  On approval the hub mints a key and pushes it to that exact socket; the client stores it and
+  reconnects authenticated.
+- **Bootstrap.** First run with an empty identity store prints a one-time **owner key** to the
+  console; paste it into the UI (“I already have a key”) to become the first admin.
+- **Admin panel** (admins only): approve requests, list identities, revoke, promote/demote,
+  force-disconnect, rename, and an audit log. You can't revoke or demote the **last** admin.
+- **CLI** (`super-talk-server keys …`) for offline recovery / headless provisioning:
+
+  ```bash
+  super-talk-server keys list
+  super-talk-server keys add backend-bot --agent      # prints a key once
+  super-talk-server keys add ada --admin              # a human admin
+  super-talk-server keys revoke backend-bot
+  ```
+
+  Locked out (lost the only admin key)? Delete `super-talk-auth.db` to re-trigger the owner bootstrap.
+- Keys are **long-lived and revocable**; the key store (hashes only) is never exposed to clients.
+  Keys ride in the WebSocket URL, so **terminate TLS upstream (`wss://`)** when internet-exposed.
 
 ## Develop
 
@@ -155,8 +197,9 @@ pnpm lint
 pnpm --filter @super-talk/web dev   # serves :5173, talks to ws://localhost:4500
 ```
 
-> Identity model: `identify → WORKSPACE` (a shared Store read-principal), so every client can read
-> every channel. That's also why there are **no DMs** in this version — a private DM Resource
+> Identity model: authentication is **per-identity keys** (see [Authentication](#authentication)), but
+> the Store read-principal stays shared — `identify → WORKSPACE`, so every authenticated client can
+> read every channel. That's also why there are **no DMs** in this version — a private DM Resource
 > isn't possible under a single shared read-principal. Channels only.
 
 See [PLAN.md](PLAN.md) for the full design and the decisions behind it.

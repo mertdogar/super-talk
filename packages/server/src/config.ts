@@ -30,6 +30,11 @@ Options:
   --help            Show this help and exit
   --version         Show version and exit
 
+Subcommands:
+  keys list                       List identities.
+  keys add <name> [--admin] [--agent]   Issue a key (printed once).
+  keys revoke <name>              Revoke an identity's key.
+
 Precedence (highest first): flags > environment > config file > defaults.
 Env vars: SUPERTALK_PORT, SUPERTALK_HOST, SUPERTALK_DB, SUPERTALK_AUTH_DB, SUPERTALK_WEB_DIR.`;
 
