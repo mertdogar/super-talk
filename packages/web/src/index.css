@@ -4,8 +4,8 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Slack-like theme: a light content area (standard shadcn neutral tokens) plus a custom
- * aubergine sidebar palette (≈ #3F0E40) with a Slack-blue active highlight.
+ * "Control room" theme: a light content area (standard shadcn neutral tokens) plus a deep
+ * teal sidebar palette with a Signal Teal active highlight. One teal signal over neutral.
  */
 :root {
   --radius: 0.5rem;
@@ -16,8 +16,8 @@
   --card-foreground: oklch(0.21 0.006 285);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.006 285);
-  --primary: oklch(0.27 0.072 331);
-  --primary-foreground: oklch(0.98 0.005 330);
+  --primary: oklch(0.52 0.094 223);
+  --primary-foreground: oklch(0.982 0.01 205);
   --secondary: oklch(0.97 0.001 286);
   --secondary-foreground: oklch(0.21 0.006 285);
   --muted: oklch(0.97 0.001 286);
@@ -28,17 +28,17 @@
   --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(0.92 0.004 286);
   --input: oklch(0.92 0.004 286);
-  --ring: oklch(0.27 0.072 331);
+  --ring: oklch(0.52 0.094 223);
 
-  /* aubergine sidebar */
-  --sidebar: oklch(0.26 0.072 331);
-  --sidebar-darker: oklch(0.22 0.066 331);
-  --sidebar-foreground: oklch(0.95 0.012 330);
-  --sidebar-muted: oklch(0.8 0.03 330);
-  --sidebar-accent: oklch(0.33 0.07 331);
-  --sidebar-active: oklch(0.5 0.12 248);
+  /* deep teal "control room" sidebar */
+  --sidebar: oklch(0.301 0.039 226);
+  --sidebar-darker: oklch(0.254 0.032 224);
+  --sidebar-foreground: oklch(0.959 0.013 209);
+  --sidebar-muted: oklch(0.796 0.041 214);
+  --sidebar-accent: oklch(0.374 0.046 224);
+  --sidebar-active: oklch(0.52 0.094 223);
   --sidebar-active-foreground: oklch(0.99 0 0);
-  --sidebar-border: oklch(0.34 0.055 331);
+  --sidebar-border: oklch(0.395 0.048 223);
 
   --online: oklch(0.76 0.16 152);
 }

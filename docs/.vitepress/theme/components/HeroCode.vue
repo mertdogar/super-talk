@@ -37,7 +37,7 @@ $ <span class="k">claude</span> --dangerously-load-development-channels \
   border-radius: 12px;
   background: var(--vp-c-bg-alt);
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(124, 58, 237, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(14, 116, 144, 0.1);
   font-variant-ligatures: none;
 }
 
