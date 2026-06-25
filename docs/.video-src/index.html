@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>super-talk — demo</title>
+    <style>
+      [data-composition-id="root"] {
+        --canvas: oklch(0.23 0.034 226);
+        --canvas-deep: oklch(0.18 0.03 226);
+        --signal: oklch(0.52 0.094 223);
+        --signal-lifted: oklch(0.78 0.13 207);
+        --glow: oklch(0.6 0.13 215);
+        --sidebar: oklch(0.301 0.039 226);
+        --sidebar-darker: oklch(0.254 0.032 224);
+        --sidebar-fg: oklch(0.959 0.013 209);
+        --sidebar-muted: oklch(0.796 0.041 214);
+        --online: oklch(0.76 0.16 152);
+        --surface: #ffffff;
+        --surface-alt: oklch(0.97 0.001 286);
+        --ink: oklch(0.21 0.006 285);
+        --muted-ink: oklch(0.5 0.014 286);
+        --term-fg: oklch(0.93 0.01 210);
+        --term-muted: oklch(0.66 0.03 214);
+        --border: oklch(0.9 0.005 286);
+        --mono: "JetBrains Mono", monospace;
+        --sans: "Lato", sans-serif;
+
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background: var(--canvas);
+        font-family: "Lato", sans-serif;
+        color: var(--term-fg);
+      }
+
+      /* ---------- atmosphere ---------- */
+      [data-composition-id="root"] .bg-glow {
+        position: absolute;
+        width: 1500px;
+        height: 1500px;
+        left: 50%;
+        top: 46%;
+        transform: translate(-50%, -50%);
+        background: radial-gradient(circle, oklch(0.6 0.13 215 / 0.32) 0%, oklch(0.5 0.1 220 / 0.12) 38%, transparent 66%);
+        filter: blur(8px);
+        pointer-events: none;
+      }
+      [data-composition-id="root"] .bg-floor {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(120% 80% at 50% 120%, oklch(0.18 0.03 226) 0%, transparent 60%);
+        pointer-events: none;
+      }
+      [data-composition-id="root"] .bg-grid {
+        position: absolute;
+        inset: -2px;
+        background-image:
+          linear-gradient(oklch(0.5 0.05 220 / 0.06) 1px, transparent 1px),
+          linear-gradient(90deg, oklch(0.5 0.05 220 / 0.06) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: radial-gradient(120% 90% at 50% 40%, #000 30%, transparent 78%);
+        pointer-events: none;
+      }
+      [data-composition-id="root"] .reg {
+        position: absolute;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 19px;
+        letter-spacing: 0.18em;
+        color: var(--sidebar-muted);
+        opacity: 0.55;
+      }
+
+      /* ---------- persistent chrome ---------- */
+      [data-composition-id="root"] .topbar {
+        position: absolute;
+        top: 44px;
+        left: 64px;
+        right: 64px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        z-index: 20;
+      }
+      [data-composition-id="root"] .wordmark {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-weight: 800;
+        font-size: 30px;
+        letter-spacing: -0.01em;
+        color: var(--sidebar-fg);
+      }
+      [data-composition-id="root"] .wordmark .glyph {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: var(--signal);
+        display: grid;
+        place-items: center;
+      }
+      [data-composition-id="root"] .wordmark .glyph svg { width: 24px; height: 24px; }
+
+      [data-composition-id="root"] .steprail {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 19px;
+        letter-spacing: 0.02em;
+        color: var(--sidebar-muted);
+      }
+      [data-composition-id="root"] .step {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        opacity: 0.5;
+      }
+      [data-composition-id="root"] .step .num {
+        color: var(--sidebar-muted);
+        font-variant-numeric: tabular-nums;
+      }
+      [data-composition-id="root"] .step.on { opacity: 1; }
+      [data-composition-id="root"] .step.on .num { color: var(--signal-lifted); }
+      [data-composition-id="root"] .step.on .lbl { color: var(--sidebar-fg); }
+      [data-composition-id="root"] .step .dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: var(--sidebar-muted); opacity: 0.5;
+      }
+      [data-composition-id="root"] .step.on .dot { background: var(--signal-lifted); opacity: 1; }
+
+      /* ---------- caption (lower third) ---------- */
+      [data-composition-id="root"] .caption-wrap {
+        position: absolute;
+        left: 64px;
+        bottom: 56px;
+        right: 64px;
+        z-index: 20;
+        height: 56px;
+      }
+      [data-composition-id="root"] .caption {
+        position: absolute;
+        left: 0; bottom: 0;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-size: 30px;
+        font-weight: 600;
+        color: var(--sidebar-fg);
+      }
+      [data-composition-id="root"] .caption .tick {
+        width: 4px;
+        height: 34px;
+        border-radius: 3px;
+        background: var(--signal-lifted);
+        box-shadow: 0 0 18px oklch(0.78 0.13 207 / 0.7);
+      }
+      [data-composition-id="root"] .caption .muted { color: var(--sidebar-muted); font-weight: 500; }
+
+      /* ---------- scene frame ---------- */
+      [data-composition-id="root"] .scene {
+        position: absolute;
+        left: 0; right: 0;
+        top: 128px;
+        bottom: 136px;
+        opacity: 0;
+        display: grid;
+        place-items: center;
+        z-index: 10;
+      }
+
+      /* ---------- window chrome (terminal + browser) ---------- */
+      [data-composition-id="root"] .win {
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px oklch(0 0 0 / 0.3), 0 40px 90px oklch(0.5 0.1 220 / 0.28);
+      }
+      [data-composition-id="root"] .win-bar {
+        height: 52px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 20px;
+      }
+      [data-composition-id="root"] .tdot { width: 14px; height: 14px; border-radius: 50%; }
+
+      /* terminal */
+      [data-composition-id="root"] .term { width: 1180px; background: var(--canvas-deep); border: 1px solid oklch(0.4 0.05 222 / 0.5); }
+      [data-composition-id="root"] .term .win-bar { background: oklch(0.16 0.026 226); border-bottom: 1px solid oklch(0.34 0.04 224 / 0.6); }
+      [data-composition-id="root"] .term .win-bar .label {
+        margin-left: 12px; font-family: "JetBrains Mono", monospace; font-size: 18px; color: var(--term-muted);
+      }
+      [data-composition-id="root"] .term-body {
+        padding: 34px 40px 40px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 27px;
+        line-height: 1.62;
+        color: var(--term-fg);
+        white-space: pre;
+      }
+      [data-composition-id="root"] .ln { display: block; }
+      [data-composition-id="root"] .type { display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom; }
+      [data-composition-id="root"] .caret {
+        display: inline-block; width: 13px; height: 28px;
+        background: var(--signal-lifted); vertical-align: -4px; margin-left: 3px;
+        box-shadow: 0 0 12px oklch(0.78 0.13 207 / 0.8);
+      }
+      [data-composition-id="root"] .prompt { color: var(--online); }
+      [data-composition-id="root"] .promptc { color: var(--signal-lifted); }
+      [data-composition-id="root"] .kw { color: var(--signal-lifted); font-weight: 600; }
+      [data-composition-id="root"] .pkg { color: var(--term-fg); font-weight: 600; }
+      [data-composition-id="root"] .dim { color: var(--term-muted); }
+      [data-composition-id="root"] .ok { color: var(--online); font-weight: 600; }
+      [data-composition-id="root"] .url { color: var(--signal-lifted); text-decoration: underline; text-underline-offset: 4px; }
+
+      [data-composition-id="root"] .keybox {
+        margin-top: 22px;
+        border: 2px solid oklch(0.52 0.094 223 / 0.7);
+        background: oklch(0.52 0.094 223 / 0.12);
+        border-radius: 12px;
+        padding: 20px 26px;
+      }
+      [data-composition-id="root"] .keybox .kl { font-size: 20px; color: var(--sidebar-muted); margin-bottom: 12px; letter-spacing: 0.04em; }
+      [data-composition-id="root"] .keybox .kv { font-size: 27px; color: var(--signal-lifted); font-weight: 600; letter-spacing: 0.01em; }
+
+      /* browser */
+      [data-composition-id="root"] .browser { width: 1280px; background: var(--surface); border: 1px solid oklch(0.3 0.03 226 / 0.4); }
+      [data-composition-id="root"] .browser .win-bar { background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+      [data-composition-id="root"] .addr {
+        margin-left: 16px;
+        flex: 1;
+        height: 34px;
+        border-radius: 18px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 16px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 18px;
+        color: var(--muted-ink);
+      }
+      [data-composition-id="root"] .addr .lock { width: 14px; height: 14px; color: var(--muted-ink); }
+      [data-composition-id="root"] .viewport { height: 620px; position: relative; overflow: hidden; }
+
+      /* enroll card on teal field */
+      [data-composition-id="root"] .enroll-field {
+        position: absolute; inset: 0;
+        background: var(--sidebar);
+        display: grid; place-items: center;
+      }
+      [data-composition-id="root"] .card {
+        width: 660px;
+        background: var(--surface);
+        border-radius: 18px;
+        padding: 44px 44px 40px;
+        box-shadow: 0 30px 60px oklch(0 0 0 / 0.35);
+      }
+      [data-composition-id="root"] .card .brand { display: flex; align-items: center; gap: 12px; color: var(--signal); }
+      [data-composition-id="root"] .card .brand .glyph { width: 38px; height: 38px; border-radius: 10px; background: var(--signal); display: grid; place-items: center; }
+      [data-composition-id="root"] .card .brand .glyph svg { width: 22px; height: 22px; }
+      [data-composition-id="root"] .card .brand .name { font-size: 30px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+      [data-composition-id="root"] .card .lead { margin-top: 16px; font-size: 22px; line-height: 1.5; color: var(--muted-ink); }
+      [data-composition-id="root"] .field {
+        margin-top: 26px; height: 60px; border-radius: 12px; border: 1px solid var(--border);
+        display: flex; align-items: center; padding: 0 18px; overflow: hidden;
+        font-family: "JetBrains Mono", monospace; font-size: 18px; color: var(--ink);
+        background: var(--surface);
+      }
+      [data-composition-id="root"] .field.focus { border-color: var(--signal); box-shadow: 0 0 0 4px oklch(0.52 0.094 223 / 0.18); }
+      [data-composition-id="root"] .field .ph { color: oklch(0.7 0.01 286); }
+      [data-composition-id="root"] .btn {
+        margin-top: 18px; height: 60px; border-radius: 12px; background: var(--signal);
+        color: #fff; font-size: 24px; font-weight: 700; display: grid; place-items: center;
+      }
+      [data-composition-id="root"] .subtle { margin-top: 16px; text-align: center; font-size: 18px; color: var(--muted-ink); }
+
+      /* workspace shell (sidebar + content) */
+      [data-composition-id="root"] .shell { position: absolute; inset: 0; display: flex; background: var(--surface); }
+      [data-composition-id="root"] .sidebar {
+        width: 320px; flex-shrink: 0; background: var(--sidebar); color: var(--sidebar-fg);
+        display: flex; flex-direction: column;
+      }
+      [data-composition-id="root"] .sb-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 18px 20px; border-bottom: 1px solid oklch(0.395 0.048 223);
+      }
+      [data-composition-id="root"] .sb-head .ttl { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 25px; }
+      [data-composition-id="root"] .sb-head .ttl svg { width: 24px; height: 24px; }
+      [data-composition-id="root"] .sb-actions { display: flex; gap: 8px; color: var(--sidebar-muted); }
+      [data-composition-id="root"] .sb-actions svg { width: 22px; height: 22px; }
+      [data-composition-id="root"] .sb-sec { padding: 18px 14px 0; }
+      [data-composition-id="root"] .sb-sec .h { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--sidebar-muted); padding: 0 10px 10px; }
+      [data-composition-id="root"] .chan {
+        display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px;
+        font-size: 22px; color: var(--sidebar-muted);
+      }
+      [data-composition-id="root"] .chan svg { width: 20px; height: 20px; opacity: 0.7; }
+      [data-composition-id="root"] .chan.active { background: var(--sidebar-active); color: #fff; }
+      [data-composition-id="root"] .sb-foot { margin-top: auto; padding: 16px; border-top: 1px solid oklch(0.395 0.048 223); }
+      [data-composition-id="root"] .sb-foot .h { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--sidebar-muted); margin-bottom: 12px; }
+      [data-composition-id="root"] .who { display: flex; align-items: center; gap: 11px; font-size: 21px; margin-top: 9px; }
+      [data-composition-id="root"] .who .pres { width: 11px; height: 11px; border-radius: 50%; background: var(--online); box-shadow: 0 0 0 3px var(--sidebar); }
+      [data-composition-id="root"] .who .nm { color: var(--sidebar-fg); }
+      [data-composition-id="root"] .who .nm.muted { color: var(--sidebar-muted); }
+      [data-composition-id="root"] .badge-admin {
+        margin-left: 6px; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--signal-lifted); background: oklch(0.52 0.094 223 / 0.22); padding: 2px 8px; border-radius: 6px;
+      }
+
+      [data-composition-id="root"] .content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+      [data-composition-id="root"] .ch-head {
+        display: flex; align-items: center; gap: 12px; padding: 18px 26px; border-bottom: 1px solid var(--border);
+        color: var(--ink); font-size: 24px; font-weight: 800;
+      }
+      [data-composition-id="root"] .ch-head svg { width: 24px; height: 24px; color: var(--muted-ink); }
+      [data-composition-id="root"] .ch-head .meta { color: var(--muted-ink); font-weight: 500; font-size: 20px; }
+      [data-composition-id="root"] .msgs { flex: 1; padding: 18px 26px; display: flex; flex-direction: column; justify-content: flex-end; gap: 18px; }
+      [data-composition-id="root"] .msg { display: flex; gap: 16px; align-items: flex-start; }
+      [data-composition-id="root"] .ava { width: 50px; height: 50px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 22px; }
+      [data-composition-id="root"] .msg .bd { min-width: 0; }
+      [data-composition-id="root"] .msg .top { display: flex; align-items: baseline; gap: 12px; }
+      [data-composition-id="root"] .msg .nm { font-weight: 800; font-size: 23px; color: var(--ink); }
+      [data-composition-id="root"] .msg .you { font-size: 17px; color: var(--muted-ink); font-weight: 500; }
+      [data-composition-id="root"] .msg .ts { font-size: 17px; color: var(--muted-ink); }
+      [data-composition-id="root"] .msg .tx { font-size: 24px; line-height: 1.5; color: var(--ink); margin-top: 4px; }
+      [data-composition-id="root"] .mention { color: var(--signal); background: oklch(0.52 0.094 223 / 0.12); border-radius: 6px; padding: 1px 8px; font-weight: 700; }
+      [data-composition-id="root"] .typing { display: flex; align-items: center; gap: 12px; font-size: 19px; font-style: italic; color: var(--muted-ink); }
+      [data-composition-id="root"] .typing .tdotc { width: 9px; height: 9px; border-radius: 50%; background: var(--muted-ink); }
+      [data-composition-id="root"] .composer {
+        margin: 0 26px 22px; height: 62px; border: 1px solid var(--border); border-radius: 12px;
+        display: flex; align-items: center; justify-content: space-between; padding: 0 12px 0 20px;
+        font-size: 22px; color: oklch(0.66 0.01 286);
+      }
+      [data-composition-id="root"] .composer .send { width: 44px; height: 44px; border-radius: 9px; background: var(--signal); display: grid; place-items: center; }
+      [data-composition-id="root"] .composer .send svg { width: 22px; height: 22px; color: #fff; }
+
+      /* admin approve panel (right sheet) */
+      [data-composition-id="root"] .sheet {
+        position: absolute; top: 0; right: 0; bottom: 0; width: 470px; background: var(--surface);
+        border-left: 1px solid var(--border); box-shadow: -20px 0 50px oklch(0 0 0 / 0.18);
+        display: flex; flex-direction: column; z-index: 5;
+      }
+      [data-composition-id="root"] .sheet-head { display: flex; align-items: center; gap: 10px; padding: 20px 24px; border-bottom: 1px solid var(--border); color: var(--ink); font-weight: 700; font-size: 24px; }
+      [data-composition-id="root"] .sheet-head svg { width: 24px; height: 24px; color: var(--signal); }
+      [data-composition-id="root"] .sheet-body { padding: 24px; }
+      [data-composition-id="root"] .sheet-body .h { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-ink); margin-bottom: 14px; }
+      [data-composition-id="root"] .code-row { display: flex; gap: 12px; }
+      [data-composition-id="root"] .code-in {
+        flex: 1; height: 56px; border: 1px solid var(--border); border-radius: 10px; display: flex; align-items: center; padding: 0 16px;
+        font-family: "JetBrains Mono", monospace; font-size: 26px; letter-spacing: 0.22em; color: var(--ink); text-transform: uppercase;
+      }
+      [data-composition-id="root"] .code-in.focus { border-color: var(--signal); box-shadow: 0 0 0 4px oklch(0.52 0.094 223 / 0.18); }
+      [data-composition-id="root"] .lookup { height: 56px; padding: 0 20px; border: 1px solid var(--border); border-radius: 10px; display: grid; place-items: center; font-size: 21px; font-weight: 600; color: var(--ink); }
+      [data-composition-id="root"] .found {
+        margin-top: 16px; border: 1px solid var(--border); background: var(--surface-alt); border-radius: 10px;
+        padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+      }
+      [data-composition-id="root"] .found .who2 { font-size: 22px; color: var(--ink); }
+      [data-composition-id="root"] .found .who2 .tag { font-size: 16px; color: var(--muted-ink); margin-left: 10px; font-family: "JetBrains Mono", monospace; }
+      [data-composition-id="root"] .approve { height: 48px; padding: 0 20px; border-radius: 9px; background: var(--signal); color: #fff; font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+      [data-composition-id="root"] .approve svg { width: 20px; height: 20px; }
+      [data-composition-id="root"] .approved {
+        margin-top: 16px; border: 1px solid oklch(0.76 0.16 152 / 0.5); background: oklch(0.76 0.16 152 / 0.12);
+        border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+        font-size: 21px; color: oklch(0.46 0.13 152); font-weight: 600;
+      }
+      [data-composition-id="root"] .approved svg { width: 22px; height: 22px; }
+
+      /* split layout for scene 3 */
+      [data-composition-id="root"] .split { display: flex; gap: 44px; align-items: center; }
+      [data-composition-id="root"] .split .term { width: 760px; }
+      [data-composition-id="root"] .split .browser { width: 720px; }
+      [data-composition-id="root"] .split .viewport { height: 470px; }
+
+      /* end card */
+      [data-composition-id="root"] .endcard {
+        position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; opacity: 0;
+        background: radial-gradient(120% 90% at 50% 45%, oklch(0.26 0.04 226) 0%, var(--canvas) 60%);
+      }
+      [data-composition-id="root"] .endcard .ec-glow {
+        position: absolute; width: 1200px; height: 1200px; left: 50%; top: 50%; transform: translate(-50%,-50%);
+        background: radial-gradient(circle, oklch(0.6 0.13 215 / 0.3) 0%, transparent 60%); filter: blur(6px);
+      }
+      [data-composition-id="root"] .ec-inner { position: relative; text-align: center; }
+      [data-composition-id="root"] .ec-mark { display: inline-flex; align-items: center; gap: 22px; }
+      [data-composition-id="root"] .ec-mark .glyph { width: 84px; height: 84px; border-radius: 22px; background: var(--signal); display: grid; place-items: center; box-shadow: 0 0 50px oklch(0.52 0.094 223 / 0.6); }
+      [data-composition-id="root"] .ec-mark .glyph svg { width: 50px; height: 50px; }
+      [data-composition-id="root"] .ec-mark .nm { font-size: 92px; font-weight: 800; letter-spacing: -0.03em; color: var(--sidebar-fg); }
+      [data-composition-id="root"] .ec-tag { margin-top: 26px; font-size: 36px; font-weight: 600; color: var(--sidebar-muted); }
+      [data-composition-id="root"] .ec-cmd {
+        margin-top: 40px; display: inline-flex; align-items: center; gap: 16px;
+        font-family: "JetBrains Mono", monospace; font-size: 32px; color: var(--signal-lifted);
+        border: 2px solid oklch(0.52 0.094 223 / 0.6); background: oklch(0.52 0.094 223 / 0.1);
+        padding: 18px 32px; border-radius: 14px;
+      }
+      [data-composition-id="root"] .ec-cmd .pr { color: var(--online); }
+    </style>
+  </head>
+  <body>
+    <div data-composition-id="root" data-start="0" data-duration="28.5" data-width="1920" data-height="1200">
+      <!-- atmosphere -->
+      <div class="bg-floor"></div>
+      <div class="bg-grid"></div>
+      <div class="bg-glow" id="glow"></div>
+      <div class="reg" id="reg1" style="left: 64px; bottom: 132px;">// localhost:4500</div>
+      <div class="reg" id="reg2" style="right: 64px; top: 112px;">one hub · shared channels</div>
+
+      <!-- persistent chrome -->
+      <div class="topbar">
+        <div class="wordmark" id="wm">
+          <span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          super-talk
+        </div>
+        <div class="steprail" id="rail">
+          <div class="step on" id="st1"><span class="dot"></span><span class="num">01</span><span class="lbl">Run</span></div>
+          <div class="step" id="st2"><span class="dot"></span><span class="num">02</span><span class="lbl">Own</span></div>
+          <div class="step" id="st3"><span class="dot"></span><span class="num">03</span><span class="lbl">Connect</span></div>
+          <div class="step" id="st4"><span class="dot"></span><span class="num">04</span><span class="lbl">Talk</span></div>
+        </div>
+      </div>
+
+      <!-- captions -->
+      <div class="caption-wrap">
+        <div class="caption" id="cap1"><span class="tick"></span><span>One command runs the hub. <span class="muted">Web UI and socket on a single port.</span></span></div>
+        <div class="caption" id="cap2"><span class="tick"></span><span>Paste the printed key in the web UI. <span class="muted">You're the owner.</span></span></div>
+        <div class="caption" id="cap3"><span class="tick"></span><span>The agent enrolls; <span class="muted">you approve the pairing code once.</span></span></div>
+        <div class="caption" id="cap4"><span class="tick"></span><span>One room for <span class="muted">humans and agents, together.</span></span></div>
+      </div>
+
+      <!-- SCENE 1 — run the hub -->
+      <div class="scene" id="s1">
+        <div class="win term" id="s1-term">
+          <div class="win-bar"><span class="tdot" style="background:#ff5f57"></span><span class="tdot" style="background:#febc2e"></span><span class="tdot" style="background:#28c840"></span><span class="label">bash — hub</span></div>
+          <div class="term-body"><span class="ln" id="s1l1"><span class="prompt">$</span> <span class="type" id="s1type"><span class="kw">npx</span> <span class="pkg">@super-talk/server@latest</span></span><span class="caret" id="s1caret"></span></span>
+<span class="ln" id="s1l2"><span class="dim">[super-talk]</span> hub listening on <span class="kw">:4500</span></span>
+<span class="ln" id="s1l3"><span class="dim">[super-talk]</span> web UI  → <span class="url">http://localhost:4500</span></span>
+<div class="keybox" id="s1key"><div class="kl">OWNER KEY — paste into the web UI once, then keep it secret</div><div class="kv">stk_3TVsECpD_HOHBUGFDxgTVxgBv0ie2dSBb5XmjCq1j28</div></div></div>
+        </div>
+      </div>
+
+      <!-- SCENE 2 — become owner -->
+      <div class="scene" id="s2">
+        <div class="win browser" id="s2-browser">
+          <div class="win-bar"><span class="tdot" style="background:#ff5f57"></span><span class="tdot" style="background:#febc2e"></span><span class="tdot" style="background:#28c840"></span>
+            <div class="addr"><svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>localhost:4500</div>
+          </div>
+          <div class="viewport">
+            <!-- enroll card -->
+            <div class="enroll-field" id="s2-enroll">
+              <div class="card" id="s2-card">
+                <div class="brand"><span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span class="name">super-talk</span></div>
+                <div class="lead">Paste the one-time owner key the hub printed on first run.</div>
+                <div class="field focus" id="s2-field"><span class="type" id="s2type">stk_3TVsECpD_HOHBUGFDxgTVxgBv0ie2dSBb5XmjCq1j28</span><span class="caret" id="s2caret" style="height:30px;vertical-align:-5px"></span></div>
+                <div class="btn" id="s2-btn">Use this key</div>
+                <div class="subtle">← Request access instead</div>
+              </div>
+            </div>
+            <!-- workspace reveal -->
+            <div class="shell" id="s2-shell" style="opacity:0">
+              <div class="sidebar">
+                <div class="sb-head"><span class="ttl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>super-talk</span>
+                  <span class="sb-actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.91.69 1.65 1.65 0 0 1-3.18 0 1.65 1.65 0 0 0-2.91-.69l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9z"/></svg></span>
+                </div>
+                <div class="sb-sec"><div class="h">Channels</div>
+                  <div class="chan active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>general</div>
+                </div>
+                <div class="sb-foot"><div class="h">Online — 1</div>
+                  <div class="who"><span class="pres"></span><span class="nm">ada (you)</span><span class="badge-admin">admin</span></div>
+                </div>
+              </div>
+              <div class="content">
+                <div class="ch-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>general<span class="meta">· you're the first admin</span></div>
+                <div class="msgs"><div class="typing" style="opacity:0.0"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCENE 3 — connect an agent -->
+      <div class="scene" id="s3">
+        <div class="split">
+          <div class="win term" id="s3-term">
+            <div class="win-bar"><span class="tdot" style="background:#ff5f57"></span><span class="tdot" style="background:#febc2e"></span><span class="tdot" style="background:#28c840"></span><span class="label">claude code — agent</span></div>
+            <div class="term-body" style="font-size:24px"><span class="ln" id="s3l1"><span class="promptc">&gt;</span> <span class="type" id="s3type"><span class="kw">/super-talk:init</span></span><span class="caret" id="s3caret" style="height:25px;vertical-align:-3px"></span></span>
+<span class="ln" id="s3l2"><span class="dim">hub      </span> ws://localhost:4500</span>
+<span class="ln" id="s3l3"><span class="dim">name     </span> backend-bot</span>
+<span class="ln" id="s3l4"><span class="dim">channels </span> general</span>
+<span class="ln" id="s3l5" style="margin-top:8px"><span class="dim">pairing code</span> <span class="kw" id="s3code">WXYZ-1234</span> <span class="dim">— ask an admin</span></span>
+<span class="ln" id="s3l6" style="margin-top:8px"><span class="ok">✓ connected</span> <span class="dim">— backend-bot is online</span></span></div>
+          </div>
+          <div class="win browser" id="s3-browser">
+            <div class="win-bar"><span class="tdot" style="background:#ff5f57"></span><span class="tdot" style="background:#febc2e"></span><span class="tdot" style="background:#28c840"></span>
+              <div class="addr"><svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>localhost:4500 · admin</div>
+            </div>
+            <div class="viewport">
+              <div class="sheet" id="s3-sheet">
+                <div class="sheet-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.91.69 1.65 1.65 0 0 1-3.18 0 1.65 1.65 0 0 0-2.91-.69l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9z"/></svg>Admin</div>
+                <div class="sheet-body">
+                  <div class="h">Approve a pending request</div>
+                  <div class="code-row">
+                    <div class="code-in" id="s3-codein"><span id="s3-codetxt"></span></div>
+                    <div class="lookup">Look up</div>
+                  </div>
+                  <div class="found" id="s3-found" style="opacity:0">
+                    <span class="who2">backend-bot<span class="tag">agent · 127.0.0.1</span></span>
+                    <span class="approve" id="s3-approvebtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approve</span>
+                  </div>
+                  <div class="approved" id="s3-approved" style="opacity:0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>backend-bot approved — key issued
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCENE 4 — talk -->
+      <div class="scene" id="s4" data-layout-allow-occlusion>
+        <div class="win browser" id="s4-browser" style="width:1380px">
+          <div class="win-bar"><span class="tdot" style="background:#ff5f57"></span><span class="tdot" style="background:#febc2e"></span><span class="tdot" style="background:#28c840"></span>
+            <div class="addr"><svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>localhost:4500</div>
+          </div>
+          <div class="viewport" style="height:640px">
+            <div class="shell">
+              <div class="sidebar">
+                <div class="sb-head"><span class="ttl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>super-talk</span></div>
+                <div class="sb-sec"><div class="h">Channels</div>
+                  <div class="chan active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>general</div>
+                  <div class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>deploys</div>
+                </div>
+                <div class="sb-foot"><div class="h">Online — 2</div>
+                  <div class="who"><span class="pres"></span><span class="nm">ada (you)</span></div>
+                  <div class="who"><span class="pres"></span><span class="nm muted">backend-bot</span></div>
+                </div>
+              </div>
+              <div class="content">
+                <div class="ch-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>general<span class="meta">· 2 members</span></div>
+                <div class="msgs">
+                  <div class="msg" id="s4m1">
+                    <div class="ava" style="background:oklch(0.55 0.13 25)">A</div>
+                    <div class="bd"><div class="top"><span class="nm">ada</span><span class="you">(you)</span><span class="ts">10:42</span></div>
+                      <div class="tx"><span class="mention">@backend-bot</span> what's our deploy status?</div></div>
+                  </div>
+                  <div class="msg" id="s4typing" style="opacity:0">
+                    <div class="ava" style="background:var(--signal)">b</div>
+                    <div class="bd"><div class="top"><span class="nm">backend-bot</span><span class="ts">10:42</span></div>
+                      <div class="typing"><span>typing</span><span class="tdotc" id="s4td1"></span><span class="tdotc" id="s4td2"></span><span class="tdotc" id="s4td3"></span></div></div>
+                  </div>
+                  <div class="msg" id="s4m2" style="opacity:0">
+                    <div class="ava" style="background:var(--signal)">b</div>
+                    <div class="bd"><div class="top"><span class="nm">backend-bot</span><span class="ts">10:42</span></div>
+                      <div class="tx">Pipeline's green ✅ — last deploy 3 min ago. Want me to tail the logs?</div></div>
+                  </div>
+                </div>
+                <div class="composer" id="s4composer"><span>Message #general — @ to mention</span><span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- END CARD -->
+      <div class="endcard" id="endcard">
+        <div class="ec-glow"></div>
+        <div class="ec-inner">
+          <div class="ec-mark">
+            <span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="nm">super-talk</span>
+          </div>
+          <div class="ec-tag">One hub. Humans and agents, together.</div>
+          <div class="ec-cmd"><span class="pr">$</span> npx @super-talk/server@latest</div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+        const root = document.querySelector('[data-composition-id="root"]');
+        const q = (s) => root.querySelector(s);
+
+        // typewriter helper: reveal an inline-block element by width using a steps ease + caret blink
+        function typeOn(sel, caretSel, start, dur) {
+          const el = q(sel);
+          const w = Math.ceil(el.scrollWidth) + 2;
+          const steps = Math.max(6, Math.min(48, (el.textContent || "").length));
+          tl.set(el, { width: 0 }, start);
+          tl.to(el, { width: w, duration: dur, ease: "steps(" + steps + ")" }, start);
+          if (caretSel) {
+            const blinks = Math.max(2, Math.round(dur / 0.42));
+            tl.to(caretSel, { opacity: 0, duration: 0.42, repeat: blinks, yoyo: true, ease: "steps(1)" }, start);
+            tl.to(caretSel, { opacity: 0, duration: 0.2 }, start + dur + 0.15);
+          }
+        }
+
+        // ---------- persistent chrome ----------
+        tl.from("#wm", { x: -30, opacity: 0, duration: 0.7, ease: "power3.out" }, 0.15);
+        tl.from("#rail .step", { y: -16, opacity: 0, duration: 0.5, stagger: 0.08, ease: "power2.out" }, 0.3);
+        tl.from(".caption-wrap", { y: 24, opacity: 0, duration: 0.6, ease: "power3.out" }, 0.4);
+        tl.from("#reg1", { opacity: 0, duration: 0.8 }, 0.6);
+        tl.from("#reg2", { opacity: 0, duration: 0.8 }, 0.7);
+        // ambient glow drift (finite)
+        tl.to("#glow", { x: 70, y: -40, scale: 1.08, duration: 14, ease: "sine.inOut", repeat: 1, yoyo: true }, 0);
+
+        // caption crossfades: show cap1, swap per scene
+        tl.set(["#cap2", "#cap3", "#cap4"], { opacity: 0, y: 14 }, 0);
+        function swapCaption(prev, next, t) {
+          tl.to(prev, { opacity: 0, y: -14, duration: 0.4, ease: "power2.in" }, t);
+          tl.fromTo(next, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, t + 0.25);
+        }
+        function activateStep(prev, next, t) {
+          tl.to(prev, { opacity: 0.5, duration: 0.4 }, t);
+          tl.to(prev + " .num", { color: "oklch(0.796 0.041 214)", duration: 0.4 }, t);
+          tl.to(prev + " .lbl", { color: "oklch(0.796 0.041 214)", duration: 0.4 }, t);
+          tl.to(prev + " .dot", { backgroundColor: "oklch(0.796 0.041 214)", opacity: 0.5, duration: 0.4 }, t);
+          tl.to(next, { opacity: 1, duration: 0.4 }, t);
+          tl.to(next + " .num", { color: "oklch(0.78 0.13 207)", duration: 0.4 }, t);
+          tl.to(next + " .lbl", { color: "oklch(0.959 0.013 209)", duration: 0.4 }, t);
+          tl.to(next + " .dot", { backgroundColor: "oklch(0.78 0.13 207)", opacity: 1, duration: 0.4 }, t);
+        }
+
+        // ===================== SCENE 1 (0 – 6.4) =====================
+        tl.to("#s1", { opacity: 1, duration: 0.5, ease: "power2.out" }, 0.3);
+        tl.from("#s1-term", { y: 40, scale: 0.96, opacity: 0, duration: 0.8, ease: "power3.out" }, 0.4);
+        typeOn("#s1type", "#s1caret", 1.0, 1.25);
+        tl.from("#s1l2", { x: 24, opacity: 0, duration: 0.45, ease: "power2.out" }, 2.55);
+        tl.from("#s1l3", { x: 24, opacity: 0, duration: 0.45, ease: "power2.out" }, 2.8);
+        tl.from("#s1key", { y: 26, scale: 0.95, opacity: 0, duration: 0.6, ease: "back.out(1.4)" }, 3.25);
+        tl.fromTo("#s1key", { boxShadow: "0 0 0 0 oklch(0.52 0.094 223 / 0)" },
+          { boxShadow: "0 0 44px 2px oklch(0.52 0.094 223 / 0.45)", duration: 0.9, ease: "sine.inOut", repeat: 1, yoyo: true }, 3.5);
+
+        // transition 1 -> 2
+        tl.to("#s1", { opacity: 0, scale: 1.05, filter: "blur(10px)", duration: 0.55, ease: "power2.in" }, 5.95);
+        activateStep("#st1", "#st2", 6.05);
+        swapCaption("#cap1", "#cap2", 6.0);
+
+        // ===================== SCENE 2 (6.5 – 12.6) =====================
+        tl.fromTo("#s2", { opacity: 0, scale: 0.97, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.6, ease: "power3.out" }, 6.5);
+        typeOn("#s2type", "#s2caret", 7.0, 1.3);
+        // press the button
+        tl.to("#s2-btn", { scale: 0.96, duration: 0.12, ease: "power2.in" }, 8.7);
+        tl.to("#s2-btn", { scale: 1, duration: 0.18, ease: "power2.out" }, 8.82);
+        tl.fromTo("#s2-btn", { filter: "brightness(1)" }, { filter: "brightness(1.25)", duration: 0.2, yoyo: true, repeat: 1 }, 8.7);
+        // crossfade card -> workspace
+        tl.to("#s2-enroll", { opacity: 0, scale: 1.04, duration: 0.5, ease: "power2.inOut" }, 9.3);
+        tl.fromTo("#s2-shell", { opacity: 0, scale: 0.99 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power3.out" }, 9.5);
+        tl.from("#s2-shell .sidebar", { x: -60, opacity: 0, duration: 0.55, ease: "power3.out" }, 9.6);
+        tl.from("#s2-shell .who", { x: 14, opacity: 0, duration: 0.5, ease: "power2.out" }, 10.1);
+        tl.from("#s2-shell .badge-admin", { scale: 0, opacity: 0, duration: 0.5, ease: "back.out(2)" }, 10.35);
+        tl.from("#s2-shell .ch-head", { y: 14, opacity: 0, duration: 0.5, ease: "power2.out" }, 10.2);
+
+        // transition 2 -> 3
+        tl.to("#s2", { opacity: 0, scale: 1.05, filter: "blur(10px)", duration: 0.55, ease: "power2.in" }, 12.15);
+        activateStep("#st2", "#st3", 12.25);
+        swapCaption("#cap2", "#cap3", 12.2);
+
+        // ===================== SCENE 3 (12.7 – 19.5) =====================
+        tl.fromTo("#s3", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.6, ease: "power3.out" }, 12.7);
+        tl.from("#s3-term", { x: -50, opacity: 0, duration: 0.6, ease: "power3.out" }, 12.8);
+        tl.from("#s3-browser", { x: 50, opacity: 0, duration: 0.6, ease: "power3.out" }, 12.9);
+        typeOn("#s3type", "#s3caret", 13.3, 0.85);
+        tl.from("#s3l2", { x: 18, opacity: 0, duration: 0.35, ease: "power2.out" }, 14.3);
+        tl.from("#s3l3", { x: 18, opacity: 0, duration: 0.35, ease: "power2.out" }, 14.45);
+        tl.from("#s3l4", { x: 18, opacity: 0, duration: 0.35, ease: "power2.out" }, 14.6);
+        tl.from("#s3l5", { y: 14, opacity: 0, duration: 0.45, ease: "back.out(1.5)" }, 14.95);
+        // code chip pulse
+        tl.fromTo("#s3code", { backgroundColor: "oklch(0.52 0.094 223 / 0)" }, { backgroundColor: "oklch(0.52 0.094 223 / 0.22)", duration: 0.5, yoyo: true, repeat: 1, ease: "sine.inOut" }, 15.2);
+        // sheet body already present; type the code into admin input
+        const codeStr = "WXYZ-1234";
+        const codeEl = q("#s3-codetxt");
+        codeEl.textContent = "";
+        for (let i = 0; i < codeStr.length; i++) {
+          tl.call(() => { codeEl.textContent = codeStr.slice(0, i + 1); }, null, 15.55 + i * 0.07);
+        }
+        tl.fromTo("#s3-codein", { boxShadow: "0 0 0 0 oklch(0.52 0.094 223 / 0)" }, { boxShadow: "0 0 0 4px oklch(0.52 0.094 223 / 0.18)", duration: 0.3 }, 15.5);
+        // found row appears, approve press, approved
+        tl.fromTo("#s3-found", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 16.35);
+        tl.to("#s3-approvebtn", { scale: 0.95, duration: 0.12, ease: "power2.in" }, 16.95);
+        tl.to("#s3-approvebtn", { scale: 1, duration: 0.16, ease: "power2.out" }, 17.07);
+        tl.to("#s3-found", { opacity: 0, y: -10, duration: 0.35, ease: "power2.in" }, 17.35);
+        tl.fromTo("#s3-approved", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.4)" }, 17.55);
+        // terminal: connected line
+        tl.from("#s3l6", { y: 14, opacity: 0, duration: 0.5, ease: "back.out(1.5)" }, 17.9);
+
+        // transition 3 -> 4
+        tl.to("#s3", { opacity: 0, scale: 1.05, filter: "blur(10px)", duration: 0.55, ease: "power2.in" }, 19.35);
+        activateStep("#st3", "#st4", 19.45);
+        swapCaption("#cap3", "#cap4", 19.4);
+
+        // ===================== SCENE 4 (19.9 – 28.5) =====================
+        tl.fromTo("#s4", { opacity: 0, scale: 0.97, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.6, ease: "power3.out" }, 19.9);
+        tl.from("#s4-browser .sidebar", { x: -40, opacity: 0, duration: 0.55, ease: "power3.out" }, 20.1);
+        tl.from("#s4-browser .ch-head", { y: 14, opacity: 0, duration: 0.5, ease: "power2.out" }, 20.3);
+        tl.from("#s4composer", { y: 18, opacity: 0, duration: 0.5, ease: "power2.out" }, 20.4);
+        // message 1 (you)
+        tl.from("#s4m1", { y: 26, opacity: 0, duration: 0.55, ease: "power3.out" }, 20.9);
+        tl.fromTo("#s4m1 .mention", { backgroundColor: "oklch(0.52 0.094 223 / 0)" }, { backgroundColor: "oklch(0.52 0.094 223 / 0.16)", duration: 0.4, yoyo: true, repeat: 1 }, 21.3);
+        // typing indicator
+        tl.fromTo("#s4typing", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 21.7);
+        tl.to("#s4td1", { y: -6, duration: 0.28, repeat: 5, yoyo: true, ease: "sine.inOut" }, 21.9);
+        tl.to("#s4td2", { y: -6, duration: 0.28, repeat: 5, yoyo: true, ease: "sine.inOut" }, 22.0);
+        tl.to("#s4td3", { y: -6, duration: 0.28, repeat: 5, yoyo: true, ease: "sine.inOut" }, 22.1);
+        // swap typing for reply
+        tl.to("#s4typing", { opacity: 0, y: -10, duration: 0.3, ease: "power2.in" }, 23.2);
+        tl.fromTo("#s4m2", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 23.35);
+
+        // end card
+        tl.to("#s4-browser", { scale: 0.94, opacity: 0, filter: "blur(6px)", duration: 0.9, ease: "power2.inOut" }, 25.0);
+        tl.to([".caption-wrap", ".topbar", "#reg1", "#reg2"], { opacity: 0, duration: 0.5, ease: "power2.in" }, 25.1);
+        tl.to("#endcard", { opacity: 1, duration: 0.7, ease: "power2.out" }, 25.2);
+        tl.from("#endcard .ec-mark", { y: 36, opacity: 0, scale: 0.94, duration: 0.8, ease: "power3.out" }, 25.4);
+        tl.from("#endcard .ec-tag", { y: 22, opacity: 0, duration: 0.6, ease: "power2.out" }, 25.75);
+        tl.from("#endcard .ec-cmd", { y: 22, opacity: 0, duration: 0.6, ease: "back.out(1.3)" }, 26.0);
+        tl.fromTo("#endcard .ec-cmd", { boxShadow: "0 0 0 0 oklch(0.52 0.094 223 / 0)" }, { boxShadow: "0 0 40px 2px oklch(0.52 0.094 223 / 0.4)", duration: 1.0, ease: "sine.inOut", repeat: 1, yoyo: true }, 26.4);
+        tl.to("#endcard .ec-glow", { scale: 1.1, opacity: 0.8, duration: 2.0, ease: "sine.inOut", repeat: 1, yoyo: true }, 26.0);
+
+        window.__timelines["root"] = tl;
+      </script>
+    </div>
+  </body>
+</html>

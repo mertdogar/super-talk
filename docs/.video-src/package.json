@@ -1,0 +1,5 @@
+{
+  "name": "super-talk-demo-video",
+  "private": true,
+  "description": "HyperFrames source for the docs hero demo video. Render: npx hyperframes render --output ../public/super-talk-demo.mp4"
+}
