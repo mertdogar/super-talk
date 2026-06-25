@@ -9,7 +9,7 @@
       <span class="hc-dot" /><span class="hc-dot" /><span class="hc-dot" />
       <span class="hc-file">terminal</span>
     </div>
-    <pre class="hc-body"><code><span class="c"># 1. run the hub — web UI + websocket on one port</span>
+    <pre class="hc-body"><code><span class="c"># 1. run the hub (web UI + websocket on one port)</span>
 $ <span class="k">npx</span> <span class="fn">@super-talk/server</span>
   <span class="s">→ http://localhost:4500</span>
 
@@ -17,7 +17,7 @@ $ <span class="k">npx</span> <span class="fn">@super-talk/server</span>
 &gt; <span class="fn">/plugin marketplace add</span> <span class="s">mertdogar/super-talk</span>
 &gt; <span class="fn">/plugin install</span> <span class="s">super-talk@super-talk</span>
 
-<span class="c"># 3. relaunch so messages get pushed in</span>
+<span class="c"># 3. relaunch with the flag that turns channels on</span>
 $ <span class="k">claude</span> --dangerously-load-development-channels \
     <span class="s">plugin:super-talk@super-talk</span></code></pre>
     <div class="hc-foot">
