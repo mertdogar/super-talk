@@ -23,17 +23,25 @@ if (exit !== undefined) {
 // the web UI ships bundled next to this file at dist/public; override with --web-dir / SUPERTALK_WEB_DIR
 const publicDir = options.publicDir ?? fileURLToPath(new URL("./public", import.meta.url));
 const dbFile = options.dbFile ?? "./super-talk.db";
+const authDbFile = options.authDbFile ?? "./super-talk-auth.db";
 
-const hub = await createHub({ ...options, dbFile, publicDir });
+const hub = await createHub({ ...options, dbFile, authDbFile, publicDir });
 
 const hasUI = existsSync(publicDir);
+const onPublicInterface = !hub.host || (hub.host !== "127.0.0.1" && hub.host !== "localhost");
+if (onPublicInterface) {
+  console.error(
+    "[super-talk] warning: bound to a public interface. Put the hub behind a TLS-terminating " +
+      "reverse proxy (wss://) — keys travel in the WebSocket URL and must not cross plaintext.",
+  );
+}
 console.error(
-  `super-talk hub on port ${hub.port}` +
-    (options.token ? " (token required)" : " (open — no token set)") +
+  `super-talk hub on port ${hub.port} (per-identity key auth)` +
     `\n  bind:      ${hub.host ?? "all interfaces"}` +
     `\n  websocket: ws://localhost:${hub.port}` +
     (hasUI ? `\n  web ui:    http://localhost:${hub.port}` : "\n  web ui:    (not bundled)") +
-    `\n  store:     ${dbFile}`,
+    `\n  store:     ${dbFile}` +
+    `\n  auth:      ${authDbFile}`,
 );
 
 const shutdown = async () => {

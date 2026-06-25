@@ -3,15 +3,21 @@ import { memoryStoreServer } from "@super-line/store-memory";
 import { webSocketClientTransport } from "@super-line/transport-websocket";
 import { api, type Delivery, type MembersDoc } from "@super-talk/core";
 import { afterEach, beforeEach, expect, it } from "vitest";
+import { AuthStore } from "./auth-store.js";
 import { createHub, type Hub } from "./index.js";
 
 let hub: Hub;
+let auth: AuthStore;
 const clients: { close(): void }[] = [];
+// key per identity name — reused so the same name "reconnecting" keeps its credential
+const keys = new Map<string, string>();
 
 beforeEach(async () => {
+  auth = new AuthStore(":memory:");
   hub = await createHub({
     port: 0,
     store: memoryStoreServer(),
+    authStore: auth,
     cooldownMax: 3,
     cooldownWindowMs: 1000,
   });
@@ -20,8 +26,16 @@ beforeEach(async () => {
 afterEach(async () => {
   for (const c of clients) c.close();
   clients.length = 0;
+  keys.clear();
   await hub.close();
+  auth.close();
 });
+
+function keyFor(name: string, kind: "user" | "agent"): string {
+  let key = keys.get(name);
+  if (!key) keys.set(name, (key = hub.auth.issue(name, kind)));
+  return key;
+}
 
 function connect<R extends "user" | "agent">(
   role: R,
@@ -30,7 +44,7 @@ function connect<R extends "user" | "agent">(
   const c = createSuperLineClient(api, {
     transport: webSocketClientTransport({ url: `ws://localhost:${hub.port}` }),
     role,
-    params: { name },
+    params: { key: keyFor(name, role === "agent" ? "agent" : "user") },
     reconnect: false,
   });
   clients.push(c);
@@ -137,13 +151,6 @@ it("records channel members with roles on join and send", async () => {
   const doc = (await hub.srv.store("chat").read("members:general"))?.data as MembersDoc;
   const byName = Object.fromEntries(doc.members.map((m) => [m.name, m.role]));
   expect(byName).toMatchObject({ a: "agent", u: "user" });
-});
-
-it("rejects a duplicate agent name", async () => {
-  const a = connect("agent", "a");
-  await a.join({});
-  const dup = connect("agent", "a");
-  await expect(dup.join({})).rejects.toThrow();
 });
 
 it("rate-limits a runaway sender (cooldown backstop)", async () => {

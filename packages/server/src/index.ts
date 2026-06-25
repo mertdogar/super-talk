@@ -9,23 +9,29 @@ import {
   api,
   type ChannelsDoc,
   type Delivery,
+  type IdentityKind,
   type Member,
   type MembersDoc,
   type Message,
   type MessagesDoc,
 } from "@super-talk/core";
+import { AuthStore, generatePairingCode } from "./auth-store.js";
 
 export interface HubOptions {
   /** Port to listen on. Defaults to 4500. */
   port?: number;
   /** Host/interface to bind. Defaults to Node's default (all interfaces). Set e.g. `127.0.0.1` to restrict. */
   host?: string;
-  /** Shared secret. When set, clients (UI + agents) must pass a matching `token` handshake param. */
+  /** @deprecated Superseded by per-identity keys (see the auth store). Ignored; warned about on boot. */
   token?: string;
   /** The `chat` Store's server half. Defaults to a SQLite store at `dbFile`. */
   store?: ServerStore;
-  /** SQLite file for the default store. Defaults to `./super-talk.db`. Ignored if `store` is given. */
+  /** SQLite file for the default chat store. Defaults to `./super-talk.db`. Ignored if `store` is given. */
   dbFile?: string;
+  /** Server-private identity/audit store. Inject one (e.g. `new AuthStore(":memory:")`) in tests. */
+  authStore?: AuthStore;
+  /** File for the server-private auth store. Defaults to `./super-talk-auth.db`. Ignored if `authStore` is given. */
+  authDbFile?: string;
   /** Directory of the built web UI to serve over HTTP. When unset/missing, runs WebSocket-only. */
   publicDir?: string;
   /** Recent messages attached as thread context on each agent delivery. Defaults to 6. */
@@ -37,13 +43,20 @@ export interface HubOptions {
 }
 
 type Ctx = { name: string };
+type PendingCtx = { name: string; desiredName: string; kind: IdentityKind; ip: string };
 type AgentData = { channels: string[] };
 
-type Auth = { role: "user"; ctx: Ctx } | { role: "agent"; ctx: Ctx };
+type Auth =
+  | { role: "user"; ctx: Ctx }
+  | { role: "admin"; ctx: Ctx }
+  | { role: "agent"; ctx: Ctx }
+  | { role: "pending"; ctx: PendingCtx };
 
 export interface Hub {
   srv: SuperLineServer<typeof api, Auth>;
   http: http.Server;
+  /** The server-private identity store — exposed for tests + CLI key management. */
+  auth: AuthStore;
   port: number;
   host?: string;
   close(): Promise<void>;
@@ -55,6 +68,11 @@ const CHANNELS = "channels";
 const msgKey = (id: string) => `messages:${id}`;
 const memKey = (id: string) => `members:${id}`;
 const nameOf = (conn: Conn) => (conn.ctx as Ctx).name;
+const memberRoleOf = (conn: Conn): Member["role"] => (conn.role === "agent" ? "agent" : "user");
+const remoteIp = (raw: unknown): string =>
+  (raw as http.IncomingMessage | undefined)?.socket?.remoteAddress ?? "?";
+const emitTo = <T>(conn: Conn, event: string, data: T) =>
+  (conn as unknown as { emit: (e: string, d: T) => void }).emit(event, data);
 const slug = (name: string) =>
   name
     .trim()
@@ -63,16 +81,50 @@ const slug = (name: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
 
+interface PendingReq {
+  code: string;
+  desiredName: string;
+  kind: IdentityKind;
+  ip: string;
+  at: number;
+  connId: string;
+}
+interface Grant {
+  key: string;
+  name: string;
+  kind: IdentityKind;
+}
+
+const GRANT_TTL = 5 * 60_000;
+const PENDING_TTL = 10 * 60_000;
+const MAX_PENDING = 100;
+
 /** Create and start a super-talk hub. Resolves once it is listening. */
 export async function createHub(opts: HubOptions = {}): Promise<Hub> {
   const port = opts.port ?? 4500;
   const host = opts.host;
-  const token = opts.token;
   const threadContext = opts.threadContext ?? 6;
   const cooldownMax = opts.cooldownMax ?? 12;
   const cooldownWindowMs = opts.cooldownWindowMs ?? 10_000;
-  // lazy import: only load store-sqlite (better-sqlite3, native) when actually using it, so tests
-  // and typecheck that pass an in-memory store never touch the native binding.
+
+  if (opts.token) {
+    console.error(
+      "[super-talk] warning: `token` is deprecated and ignored — auth is now per-identity keys.",
+    );
+  }
+
+  // ---- server-private identity store (key hashes + audit; never a WORKSPACE Resource) ----
+  const auth = opts.authStore ?? new AuthStore(opts.authDbFile ?? "./super-talk-auth.db");
+  if (!opts.authStore && auth.count() === 0) {
+    const ownerKey = auth.issue("owner", "user", true);
+    console.error(
+      `\n[super-talk] no identities yet — created bootstrap admin "owner".\n` +
+        `[super-talk] OWNER KEY (paste into the web UI once, then keep it secret):\n\n    ${ownerKey}\n`,
+    );
+  }
+
+  // lazy import: only load store-sqlite (native) when actually using it, so tests/typecheck that
+  // pass an in-memory store never touch the native binding.
   const chatStore =
     opts.store ??
     (await import("@super-line/store-sqlite")).sqliteStoreServer({
@@ -82,7 +134,11 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
   // ---- presence: ephemeral, name-keyed online counts (a name may have several connections) ----
   const online = new Map<string, number>();
   const presenceList = () => [...online.keys()].sort();
-  const publishPresence = () => srv.forRole("user").publish("presence", { users: presenceList() });
+  const publishPresence = () => {
+    const users = presenceList();
+    srv.forRole("user").publish("presence", { users });
+    srv.forRole("admin").publish("presence", { users });
+  };
   const bumpPresence = (name: string, delta: number) => {
     const next = (online.get(name) ?? 0) + delta;
     if (next <= 0) online.delete(name);
@@ -97,6 +153,7 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
     const byChannel: Record<string, string[]> = {};
     for (const [ch, users] of typing) if (users.size) byChannel[ch] = [...users.keys()].sort();
     srv.forRole("user").publish("typing", { byChannel });
+    srv.forRole("admin").publish("typing", { byChannel });
   };
   const clearTyping = (channel: string, name: string) => {
     const users = typing.get(channel);
@@ -115,6 +172,41 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
       setTimeout(() => clearTyping(channel, name), TYPING_TTL),
     );
     publishTyping();
+  };
+
+  // ---- enrollment: in-memory pending requests + stashed-but-undelivered grants (keyed by code) ----
+  const pending = new Map<string, PendingReq>();
+  const grants = new Map<string, Grant>();
+  const sweep = setInterval(() => {
+    const now = Date.now();
+    for (const [code, r] of pending) if (now - r.at > PENDING_TTL) pending.delete(code);
+  }, 60_000);
+  sweep.unref?.();
+
+  const deliverGrant = (code: string, connId: string, grant: Grant) => {
+    const conn = srv.local.connections.find((c) => c.id === connId);
+    if (conn) emitTo(conn, "grant", grant);
+    else grants.set(code, grant); // hold for re-claim when the agent reconnects with its saved code
+    // Cleanup: a granted key only becomes "real" when its owner connects (sets last_seen_at). If it
+    // is never claimed within the TTL, revoke it so a dropped delivery leaves no dangling credential.
+    setTimeout(() => {
+      grants.delete(code);
+      const id = auth.byName(grant.name);
+      if (id && id.lastSeenAt == null) {
+        auth.revoke(grant.name);
+        auth.audit("system", "expire-unclaimed", grant.name);
+      }
+    }, GRANT_TTL).unref?.();
+  };
+
+  const disconnectName = (name: string) => {
+    for (const c of srv.local.connections.filter((c) => nameOf(c) === name)) {
+      try {
+        srv.toConn(c.id).close();
+      } catch {
+        /* already gone */
+      }
+    }
   };
 
   // ---- per-resource-key serialization (whole-doc LWW would clobber concurrent appends) ----
@@ -146,23 +238,11 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
 
   const pushToAgents = (channel: string, delivery: Delivery) => {
     const agents = srv.local.connections.filter((c) => c.role === "agent");
-    let pushed = 0;
     for (const c of agents) {
       const joined = (c.data as AgentData).channels ?? [];
-      const match = joined.includes(channel);
-      console.log(
-        `[super-talk] push #${channel} -> agent "${nameOf(c)}" joined=[${joined.join(", ")}] ${match ? "DELIVER" : "skip"}`,
-      );
-      if (!match) continue;
-      (c as unknown as { emit: (event: "message", data: Delivery) => void }).emit(
-        "message",
-        delivery,
-      );
-      pushed++;
+      if (!joined.includes(channel)) continue;
+      emitTo(c, "message", delivery);
     }
-    console.log(
-      `[super-talk] "${delivery.from}" sent to #${channel}: ${agents.length} agent conn(s), delivered to ${pushed}`,
-    );
   };
 
   // Serve the built web UI over HTTP on the same port as the WebSocket (separate `upgrade` event).
@@ -187,24 +267,31 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
     stores: { chat: chatStore },
     heartbeat: { interval: 30_000, maxMissed: 2 },
     identify: () => WORKSPACE, // shared Store read-principal; all clients read the same Resources
-    authenticate: (h) => {
-      if (token && h.query.token !== token)
-        throw new SuperLineError("UNAUTHORIZED", "invalid token");
-      const name = typeof h.query.name === "string" ? h.query.name.trim() : "";
-      if (!name) throw new SuperLineError("UNAUTHORIZED", "a non-empty `name` is required");
-      if (h.query.role === "agent") {
-        if (srv.local.connections.some((c) => nameOf(c) === name)) {
-          throw new SuperLineError("FORBIDDEN", `the name "${name}" is already in use`);
-        }
-        return { role: "agent" as const, ctx: { name } satisfies Ctx };
+    authenticate: (h): Auth => {
+      const key = typeof h.query.key === "string" ? h.query.key : "";
+      if (key) {
+        const id = auth.byKey(key);
+        if (!id) throw new SuperLineError("UNAUTHORIZED", "invalid key");
+        const role = id.kind === "agent" ? "agent" : id.isAdmin ? "admin" : "user";
+        return { role, ctx: { name: id.name } };
       }
-      return { role: "user" as const, ctx: { name } satisfies Ctx };
+      // no key → enrollment: a powerless `pending` connection that may only requestAccess + receive grant
+      const desiredName = typeof h.query.name === "string" ? h.query.name.trim() : "";
+      const kind: IdentityKind = h.query.kind === "agent" ? "agent" : "user";
+      return {
+        role: "pending",
+        ctx: { name: desiredName || "(pending)", desiredName, kind, ip: remoteIp(h.raw) },
+      };
     },
     onConnection: (conn) => {
+      if (conn.role === "pending") return;
       if (conn.role === "agent") conn.data = { channels: [] } as AgentData;
+      auth.touchLastSeen(nameOf(conn));
       bumpPresence(nameOf(conn), +1);
     },
-    onDisconnect: (conn) => bumpPresence(nameOf(conn), -1),
+    onDisconnect: (conn) => {
+      if (conn.role !== "pending") bumpPresence(nameOf(conn), -1);
+    },
   });
 
   const store = srv.store("chat");
@@ -236,55 +323,140 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
       else await store.create(memKey(channel), { members } satisfies MembersDoc, READABLE);
     });
 
+  // ---- handlers shared across roles (declared per-role in the contract, so `pending` never gets them) ----
+  const sendFn = async (
+    { channel, text }: { channel: string; text: string },
+    ctx: Ctx,
+    conn: Conn,
+  ) => {
+    const trimmed = text.trim();
+    if (!trimmed) throw new SuperLineError("BAD_REQUEST", "empty message");
+    cooldownCheck(ctx.name, channel);
+    const id = await serialize(msgKey(channel), async () => {
+      const res = await store.read(msgKey(channel));
+      if (!res) throw new SuperLineError("NOT_FOUND", `no channel #${channel}`);
+      const doc = res.data as MessagesDoc;
+      const msg: Message = { id: randomUUID(), from: ctx.name, text: trimmed, at: Date.now() };
+      const recent = doc.items.slice(-threadContext);
+      await store.write(msgKey(channel), { items: [...doc.items, msg] } satisfies MessagesDoc);
+      clearTyping(channel, ctx.name);
+      pushToAgents(channel, { ...msg, channel, recent });
+      return msg.id;
+    });
+    await touchMember(channel, ctx.name, memberRoleOf(conn));
+    return { id };
+  };
+
+  const createChannelFn = async ({ name }: { name: string }, ctx: Ctx, conn: Conn) => {
+    const id = slug(name);
+    if (!id) throw new SuperLineError("BAD_REQUEST", "channel name is empty");
+    await serialize(CHANNELS, async () => {
+      if (await store.read(msgKey(id)))
+        throw new SuperLineError("CONFLICT", `#${id} already exists`);
+      await store.create(msgKey(id), { items: [] } satisfies MessagesDoc, READABLE);
+      await store.create(memKey(id), { members: [] } satisfies MembersDoc, READABLE);
+      const index = (await store.read(CHANNELS))?.data as ChannelsDoc;
+      const channel = { id, name: name.trim(), createdAt: Date.now() };
+      await store.write(CHANNELS, { channels: [...index.channels, channel] } satisfies ChannelsDoc);
+    });
+    await touchMember(id, ctx.name, memberRoleOf(conn));
+    return { id };
+  };
+
+  const whoamiFn = async (_input: void, ctx: Ctx, conn: Conn) => ({
+    name: ctx.name,
+    role: conn.role as "user" | "agent" | "admin" | "pending",
+  });
+  const helloFn = async () => ({ users: presenceList() });
+  const typingFn = async ({ channel }: { channel: string }, ctx: Ctx) => {
+    markTyping(channel, ctx.name);
+    return { ok: true };
+  };
+
+  const humanHandlers = {
+    send: sendFn,
+    createChannel: createChannelFn,
+    whoami: whoamiFn,
+    hello: helloFn,
+    typing: typingFn,
+  };
+
   srv.implement({
-    shared: {
-      send: async ({ channel, text }, ctx, conn) => {
-        const trimmed = text.trim();
-        if (!trimmed) throw new SuperLineError("BAD_REQUEST", "empty message");
-        cooldownCheck(ctx.name, channel);
-        const id = await serialize(msgKey(channel), async () => {
-          const res = await store.read(msgKey(channel));
-          if (!res) throw new SuperLineError("NOT_FOUND", `no channel #${channel}`);
-          const doc = res.data as MessagesDoc;
-          const msg: Message = { id: randomUUID(), from: ctx.name, text: trimmed, at: Date.now() };
-          const recent = doc.items.slice(-threadContext);
-          await store.write(msgKey(channel), { items: [...doc.items, msg] } satisfies MessagesDoc);
-          clearTyping(channel, ctx.name);
-          pushToAgents(channel, { ...msg, channel, recent });
-          return msg.id;
-        });
-        await touchMember(channel, ctx.name, conn.role);
-        return { id };
-      },
+    user: humanHandlers,
 
-      createChannel: async ({ name }, ctx, conn) => {
-        const id = slug(name);
-        if (!id) throw new SuperLineError("BAD_REQUEST", "channel name is empty");
-        await serialize(CHANNELS, async () => {
-          if (await store.read(msgKey(id)))
-            throw new SuperLineError("CONFLICT", `#${id} already exists`);
-          await store.create(msgKey(id), { items: [] } satisfies MessagesDoc, READABLE);
-          await store.create(memKey(id), { members: [] } satisfies MembersDoc, READABLE);
-          const index = (await store.read(CHANNELS))?.data as ChannelsDoc;
-          const channel = { id, name: name.trim(), createdAt: Date.now() };
-          await store.write(CHANNELS, {
-            channels: [...index.channels, channel],
-          } satisfies ChannelsDoc);
-        });
-        await touchMember(id, ctx.name, conn.role);
-        return { id };
+    admin: {
+      ...humanHandlers,
+      listIdentities: async () => {
+        const onlineSet = new Set(presenceList());
+        return {
+          identities: auth.list().map((i) => ({ ...i, online: onlineSet.has(i.name) })),
+        };
       },
-    },
-
-    user: {
-      hello: async () => ({ users: presenceList() }),
-      typing: async ({ channel }, ctx) => {
-        markTyping(channel, ctx.name);
+      lookupPending: async ({ code }) => {
+        const r = pending.get(code);
+        return r
+          ? { found: true, desiredName: r.desiredName, kind: r.kind, ip: r.ip, at: r.at }
+          : { found: false };
+      },
+      approve: async ({ code, name }, ctx) => {
+        const req = pending.get(code);
+        if (!req) throw new SuperLineError("NOT_FOUND", "no pending request for that code");
+        const finalName = (name ?? req.desiredName).trim();
+        if (!finalName) throw new SuperLineError("BAD_REQUEST", "a name is required");
+        if (auth.byName(finalName))
+          throw new SuperLineError("CONFLICT", `identity "${finalName}" already exists`);
+        const key = auth.issue(finalName, req.kind, false);
+        auth.audit(ctx.name, "approve", finalName);
+        pending.delete(code);
+        deliverGrant(code, req.connId, { key, name: finalName, kind: req.kind });
+        return { ok: true, name: finalName };
+      },
+      revoke: async ({ name }, ctx) => {
+        const id = auth.byName(name);
+        if (!id) throw new SuperLineError("NOT_FOUND", `no identity "${name}"`);
+        if (id.isAdmin && auth.adminCount() <= 1)
+          throw new SuperLineError("FORBIDDEN", "cannot revoke the last admin");
+        auth.revoke(name);
+        auth.audit(ctx.name, "revoke", name);
+        disconnectName(name);
         return { ok: true };
       },
+      setAdmin: async ({ name, admin }, ctx) => {
+        const id = auth.byName(name);
+        if (!id) throw new SuperLineError("NOT_FOUND", `no identity "${name}"`);
+        if (admin && id.kind === "agent")
+          throw new SuperLineError("BAD_REQUEST", "agents cannot be admins");
+        if (!admin && id.isAdmin && auth.adminCount() <= 1)
+          throw new SuperLineError("FORBIDDEN", "cannot demote the last admin");
+        auth.setAdmin(name, admin);
+        auth.audit(ctx.name, admin ? "promote" : "demote", name);
+        disconnectName(name); // reconnect picks up the new role
+        return { ok: true };
+      },
+      forceDisconnect: async ({ name }, ctx) => {
+        disconnectName(name);
+        auth.audit(ctx.name, "force-disconnect", name);
+        return { ok: true };
+      },
+      rename: async ({ name, newName }, ctx) => {
+        const id = auth.byName(name);
+        if (!id) throw new SuperLineError("NOT_FOUND", `no identity "${name}"`);
+        const next = newName.trim();
+        if (!next) throw new SuperLineError("BAD_REQUEST", "a new name is required");
+        if (auth.byName(next))
+          throw new SuperLineError("CONFLICT", `identity "${next}" already exists`);
+        auth.rename(name, next);
+        auth.audit(ctx.name, "rename", `${name} -> ${next}`);
+        disconnectName(name);
+        return { ok: true };
+      },
+      auditLog: async ({ limit }) => ({ entries: auth.readAudit(limit ?? 100) }),
     },
 
     agent: {
+      send: sendFn,
+      createChannel: createChannelFn,
+      whoami: whoamiFn,
       join: async ({ channels }, ctx, conn) => {
         const joined = new Set(conn.data.channels);
         const added: string[] = [];
@@ -312,6 +484,39 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
         return { channels: (res?.data as ChannelsDoc | undefined)?.channels ?? [] };
       },
     },
+
+    pending: {
+      requestAccess: async ({ desiredName, kind, code }, ctx, conn) => {
+        // re-attach / re-claim after a reconnect with a previously-issued code
+        if (code) {
+          const g = grants.get(code);
+          if (g) {
+            grants.delete(code);
+            emitTo(conn, "grant", g);
+            return { code };
+          }
+          const existing = pending.get(code);
+          if (existing) {
+            existing.connId = conn.id;
+            return { code };
+          }
+        }
+        if (pending.size >= MAX_PENDING)
+          throw new SuperLineError("BAD_REQUEST", "too many pending requests; try again later");
+        const name = desiredName.trim().slice(0, 60);
+        let newCode = generatePairingCode();
+        while (pending.has(newCode)) newCode = generatePairingCode();
+        pending.set(newCode, {
+          code: newCode,
+          desiredName: name,
+          kind,
+          ip: ctx.ip,
+          at: Date.now(),
+          connId: conn.id,
+        });
+        return { code: newCode };
+      },
+    },
   });
 
   await new Promise<void>((resolve) => server.listen({ port, host }, resolve));
@@ -321,10 +526,13 @@ export async function createHub(opts: HubOptions = {}): Promise<Hub> {
   return {
     srv,
     http: server,
+    auth,
     port: actualPort,
     host,
     close: async () => {
+      clearInterval(sweep);
       await srv.close();
+      if (!opts.authStore) auth.close();
       await new Promise<void>((resolve, reject) =>
         server.close((err) => (err ? reject(err) : resolve())),
       );

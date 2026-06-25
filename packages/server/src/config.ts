@@ -11,6 +11,7 @@ export interface ResolvedConfig {
   host?: string;
   token?: string;
   dbFile?: string;
+  authDbFile?: string;
   publicDir?: string;
 }
 
@@ -21,15 +22,16 @@ Usage: super-talk-server [options]
 Options:
   --port <n>        Port to listen on (default 4500)
   --host <addr>     Host/interface to bind (default: all interfaces; e.g. 127.0.0.1)
-  --token <secret>  Shared secret required from clients (UI + agents)
-  --db <path>       SQLite file for the Store (default ./super-talk.db)
+  --token <secret>  Deprecated — ignored (auth is now per-identity keys)
+  --db <path>       SQLite file for the chat Store (default ./super-talk.db)
+  --auth-db <path>  SQLite file for the identity store (default ./super-talk-auth.db)
   --web-dir <path>  Directory of the built web UI to serve
   --config <path>   Load a JSON config file (default: ./super-talk.config.json if present)
   --help            Show this help and exit
   --version         Show version and exit
 
 Precedence (highest first): flags > environment > config file > defaults.
-Env vars: SUPERTALK_PORT, SUPERTALK_HOST, SUPERTALK_TOKEN, SUPERTALK_DB, SUPERTALK_WEB_DIR.`;
+Env vars: SUPERTALK_PORT, SUPERTALK_HOST, SUPERTALK_DB, SUPERTALK_AUTH_DB, SUPERTALK_WEB_DIR.`;
 
 function toPort(value: string, source: string): number {
   const n = Number(value);
@@ -59,6 +61,7 @@ function readFile(path: string, explicit: boolean): Partial<ResolvedConfig> {
   if (typeof obj.host === "string") out.host = obj.host;
   if (typeof obj.token === "string") out.token = obj.token;
   if (typeof obj.db === "string") out.dbFile = obj.db;
+  if (typeof obj.authDb === "string") out.authDbFile = obj.authDb;
   if (typeof obj.webDir === "string") out.publicDir = obj.webDir;
   return out;
 }
@@ -69,6 +72,7 @@ function fromEnv(env: NodeJS.ProcessEnv): Partial<ResolvedConfig> {
   if (env.SUPERTALK_HOST) out.host = env.SUPERTALK_HOST;
   if (env.SUPERTALK_TOKEN) out.token = env.SUPERTALK_TOKEN;
   if (env.SUPERTALK_DB) out.dbFile = env.SUPERTALK_DB;
+  if (env.SUPERTALK_AUTH_DB) out.authDbFile = env.SUPERTALK_AUTH_DB;
   if (env.SUPERTALK_WEB_DIR) out.publicDir = env.SUPERTALK_WEB_DIR;
   return out;
 }
@@ -98,6 +102,7 @@ export function loadConfig(
       host: { type: "string" },
       token: { type: "string" },
       db: { type: "string" },
+      "auth-db": { type: "string" },
       "web-dir": { type: "string" },
       config: { type: "string" },
       help: { type: "boolean" },
@@ -117,6 +122,7 @@ export function loadConfig(
   if (values.host !== undefined) flagLayer.host = values.host;
   if (values.token !== undefined) flagLayer.token = values.token;
   if (values.db !== undefined) flagLayer.dbFile = values.db;
+  if (values["auth-db"] !== undefined) flagLayer.authDbFile = values["auth-db"];
   if (values["web-dir"] !== undefined) flagLayer.publicDir = values["web-dir"];
 
   const merged: ResolvedConfig = { ...fileLayer, ...envLayer, ...flagLayer };
