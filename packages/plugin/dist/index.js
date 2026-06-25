@@ -21810,7 +21810,7 @@ function createSuperLineClient(contract, opts) {
   let closed = false;
   let attempt = 0;
   let reconnectTimer;
-  function connect2() {
+  function connect() {
     rawConn = opts.transport.connect(handshakeParams, {
       onOpen,
       onMessage,
@@ -21847,7 +21847,7 @@ function createSuperLineClient(contract, opts) {
       }
       return;
     }
-    reconnectTimer = setTimeout(connect2, backoffDelay(attempt++, backoff));
+    reconnectTimer = setTimeout(connect, backoffDelay(attempt++, backoff));
   }
   function onMessage(data) {
     let frame;
@@ -21919,12 +21919,12 @@ function createSuperLineClient(contract, opts) {
     }
   }
   async function handleServerRequest(frame) {
-    const send = (f) => {
+    const send2 = (f) => {
       if (rawConn?.writable) rawConn.send(serializer.encode(f));
     };
     const handler = serverHandlers.get(frame.m);
     if (!handler) {
-      send({ t: "serr", i: frame.i, code: "NOT_FOUND", m: `No handler for ${frame.m}` });
+      send2({ t: "serr", i: frame.i, code: "NOT_FOUND", m: `No handler for ${frame.m}` });
       return;
     }
     let input = frame.d;
@@ -21933,16 +21933,16 @@ function createSuperLineClient(contract, opts) {
       try {
         input = validateSync(def.input, frame.d);
       } catch {
-        send({ t: "serr", i: frame.i, code: "VALIDATION", m: "Validation failed" });
+        send2({ t: "serr", i: frame.i, code: "VALIDATION", m: "Validation failed" });
         return;
       }
     }
     try {
       const output = await handler(input);
-      send({ t: "sres", i: frame.i, d: output });
+      send2({ t: "sres", i: frame.i, d: output });
     } catch (e) {
       const se = e instanceof SuperLineError ? e : new SuperLineError("INTERNAL", "Internal client error");
-      send({ t: "serr", i: frame.i, code: se.code, m: se.message, d: se.data });
+      send2({ t: "serr", i: frame.i, code: se.code, m: se.message, d: se.data });
     }
   }
   function checkInbound(schema, data, info) {
@@ -22118,7 +22118,7 @@ function createSuperLineClient(contract, opts) {
       )
     };
   }
-  connect2();
+  connect();
   const base = {
     role,
     on(event, handler) {
@@ -22241,38 +22241,97 @@ var MemberSchema = external_exports.object({
   role: external_exports.enum(["user", "agent"]),
   lastSeen: external_exports.number()
 });
-var api = defineContract({
-  shared: {
-    clientToServer: {
-      send: {
-        input: external_exports.object({ channel: external_exports.string(), text: external_exports.string() }),
-        output: external_exports.object({ id: external_exports.string() })
-      },
-      createChannel: {
-        input: external_exports.object({ name: external_exports.string() }),
-        output: external_exports.object({ id: external_exports.string() })
-      }
-    }
+var IdentityKindSchema = external_exports.enum(["user", "agent"]);
+var IdentityInfoSchema = external_exports.object({
+  name: external_exports.string(),
+  kind: IdentityKindSchema,
+  isAdmin: external_exports.boolean(),
+  createdAt: external_exports.number(),
+  lastSeenAt: external_exports.number().nullable(),
+  online: external_exports.boolean()
+});
+var AuditEntrySchema = external_exports.object({
+  ts: external_exports.number(),
+  actor: external_exports.string(),
+  action: external_exports.string(),
+  target: external_exports.string()
+});
+var send = {
+  input: external_exports.object({ channel: external_exports.string(), text: external_exports.string() }),
+  output: external_exports.object({ id: external_exports.string() })
+};
+var createChannel = {
+  input: external_exports.object({ name: external_exports.string() }),
+  output: external_exports.object({ id: external_exports.string() })
+};
+var whoami = {
+  input: external_exports.void(),
+  output: external_exports.object({ name: external_exports.string(), role: external_exports.enum(["user", "agent", "admin", "pending"]) })
+};
+var hello = { input: external_exports.void(), output: external_exports.object({ users: external_exports.array(external_exports.string()) }) };
+var typing = { input: external_exports.object({ channel: external_exports.string() }), output: external_exports.object({ ok: external_exports.boolean() }) };
+var humanRequests = { send, createChannel, whoami, hello, typing };
+var humanEvents = {
+  presence: { payload: external_exports.object({ users: external_exports.array(external_exports.string()) }), subscribe: true },
+  typing: {
+    payload: external_exports.object({ byChannel: external_exports.record(external_exports.string(), external_exports.array(external_exports.string())) }),
+    subscribe: true
+  }
+};
+var adminRequests = {
+  listIdentities: {
+    input: external_exports.void(),
+    output: external_exports.object({ identities: external_exports.array(IdentityInfoSchema) })
   },
+  /** Resolve the one pending request bound to `code` (typed by the admin), optionally overriding the
+   * requested name. Mints a key and pushes it to the pending socket. */
+  approve: {
+    input: external_exports.object({ code: external_exports.string(), name: external_exports.string().optional() }),
+    output: external_exports.object({ ok: external_exports.boolean(), name: external_exports.string() })
+  },
+  /** Read-only: look up a pending request by code to show name + IP before confirming. */
+  lookupPending: {
+    input: external_exports.object({ code: external_exports.string() }),
+    output: external_exports.object({
+      found: external_exports.boolean(),
+      desiredName: external_exports.string().optional(),
+      kind: IdentityKindSchema.optional(),
+      ip: external_exports.string().optional(),
+      at: external_exports.number().optional()
+    })
+  },
+  revoke: { input: external_exports.object({ name: external_exports.string() }), output: external_exports.object({ ok: external_exports.boolean() }) },
+  setAdmin: {
+    input: external_exports.object({ name: external_exports.string(), admin: external_exports.boolean() }),
+    output: external_exports.object({ ok: external_exports.boolean() })
+  },
+  forceDisconnect: { input: external_exports.object({ name: external_exports.string() }), output: external_exports.object({ ok: external_exports.boolean() }) },
+  rename: {
+    input: external_exports.object({ name: external_exports.string(), newName: external_exports.string() }),
+    output: external_exports.object({ ok: external_exports.boolean() })
+  },
+  auditLog: {
+    input: external_exports.object({ limit: external_exports.number().int().positive().optional() }),
+    output: external_exports.object({ entries: external_exports.array(AuditEntrySchema) })
+  }
+};
+var api = defineContract({
   roles: {
     user: {
-      clientToServer: {
-        // seed the current presence list on mount (topics aren't retained)
-        hello: { input: external_exports.void(), output: external_exports.object({ users: external_exports.array(external_exports.string()) }) },
-        typing: { input: external_exports.object({ channel: external_exports.string() }), output: external_exports.object({ ok: external_exports.boolean() }) }
-      },
-      serverToClient: {
-        presence: { payload: external_exports.object({ users: external_exports.array(external_exports.string()) }), subscribe: true },
-        typing: {
-          payload: external_exports.object({ byChannel: external_exports.record(external_exports.string(), external_exports.array(external_exports.string())) }),
-          subscribe: true
-        }
-      }
+      clientToServer: { ...humanRequests },
+      serverToClient: { ...humanEvents }
+    },
+    admin: {
+      clientToServer: { ...humanRequests, ...adminRequests },
+      serverToClient: { ...humanEvents }
     },
     agent: {
       // joined channels — scopes which channels' messages get pushed to this agent
       data: external_exports.object({ channels: external_exports.array(external_exports.string()) }),
       clientToServer: {
+        send,
+        createChannel,
+        whoami,
         join: {
           input: external_exports.object({ channels: external_exports.array(external_exports.string()).optional() }),
           output: external_exports.object({ name: external_exports.string(), channels: external_exports.array(external_exports.string()) })
@@ -22294,6 +22353,26 @@ var api = defineContract({
       serverToClient: {
         message: { payload: DeliverySchema }
       }
+    },
+    pending: {
+      clientToServer: {
+        /** Request enrollment. First call (no `code`) mints a pairing code; re-calling with a saved
+         * `code` re-attaches this socket (and re-delivers an approved grant after a reconnect). */
+        requestAccess: {
+          input: external_exports.object({
+            desiredName: external_exports.string(),
+            kind: IdentityKindSchema,
+            code: external_exports.string().optional()
+          }),
+          output: external_exports.object({ code: external_exports.string() })
+        }
+      },
+      serverToClient: {
+        /** The minted key, pushed to the exact pending socket once an admin approves. */
+        grant: {
+          payload: external_exports.object({ key: external_exports.string(), name: external_exports.string(), kind: IdentityKindSchema })
+        }
+      }
     }
   }
 });
@@ -22313,7 +22392,9 @@ function readConfig(dir = configDir()) {
       return {
         name: cfg.name,
         channels: Array.isArray(cfg.channels) ? cfg.channels : [],
-        url: cfg.url
+        url: cfg.url,
+        ...typeof cfg.key === "string" ? { key: cfg.key } : {},
+        ...typeof cfg.code === "string" ? { code: cfg.code } : {}
       };
     }
   } catch {
@@ -22350,7 +22431,7 @@ function channelNotificationFor(d, selfName2) {
 // src/index.ts
 var ENV_URL = process.env.SUPERTALK_URL || "";
 var ENV_NAME = process.env.SUPERTALK_AGENT_NAME || "";
-var TOKEN = process.env.SUPERTALK_TOKEN || "";
+var ENV_KEY = process.env.SUPERTALK_KEY || "";
 var DEFAULT_URL = "ws://localhost:4500";
 var PRIMER = `You are connected to super-talk, shared channels where AI agents and humans collaborate.
 
@@ -22372,8 +22453,12 @@ var mcp = new Server(
   }
 );
 var client = null;
+var pendingClient = null;
 var selfName = "";
 var selfUrl = "";
+var selfKey = "";
+var pendingCode = "";
+var enrollChannels = [];
 var joinedChannels = [];
 var reconnectWatcher = null;
 function deliver(d) {
@@ -22385,22 +22470,50 @@ function deliver(d) {
   });
 }
 function persist() {
-  writeConfig({ name: selfName, channels: joinedChannels, url: selfUrl });
+  writeConfig({ name: selfName, channels: joinedChannels, url: selfUrl, key: selfKey });
 }
-async function connect(name, url, channels) {
-  selfName = name;
+async function connectAgent(key, url, channels) {
   selfUrl = url;
+  selfKey = key;
   client = createSuperLineClient(api, {
     transport: webSocketClientTransport({ url }),
     role: "agent",
-    params: { name, ...TOKEN ? { token: TOKEN } : {} }
+    params: { key }
   });
   client.on("message", deliver);
   const res = await client.join({ channels });
+  selfName = res.name;
   joinedChannels = res.channels;
   persist();
   watchReconnect();
   return res;
+}
+async function enroll(desiredName, url, channels) {
+  selfName = desiredName;
+  selfUrl = url;
+  enrollChannels = channels;
+  pendingClient?.close();
+  pendingClient = createSuperLineClient(api, {
+    transport: webSocketClientTransport({ url }),
+    role: "pending",
+    params: { name: desiredName, kind: "agent" }
+  });
+  pendingClient.on("grant", onGrant);
+  const saved = readConfig();
+  const resume = saved?.code && saved.name === desiredName ? saved.code : void 0;
+  const { code } = await pendingClient.requestAccess({ desiredName, kind: "agent", code: resume });
+  pendingCode = code;
+  writeConfig({ name: desiredName, channels, url, code });
+  console.error(`[super-talk] enrollment pending \u2014 pairing code: ${code}`);
+  return code;
+}
+function onGrant(grant) {
+  pendingClient?.close();
+  pendingClient = null;
+  pendingCode = "";
+  connectAgent(grant.key, selfUrl, enrollChannels).then(() => console.error(`[super-talk] enrollment approved \u2014 connected as "${grant.name}".`)).catch(
+    (err) => console.error(`[super-talk] connect after grant failed: ${err.message}`)
+  );
 }
 function watchReconnect() {
   if (reconnectWatcher) clearInterval(reconnectWatcher);
@@ -22417,19 +22530,26 @@ function watchReconnect() {
   }, 1e3);
 }
 function requireClient() {
-  if (!client) throw new Error("not connected \u2014 call the `join` tool first");
-  return client;
+  if (client) return client;
+  if (pendingClient)
+    throw new Error(
+      `enrollment pending \u2014 ask a super-talk admin to approve pairing code ${pendingCode} in the web UI`
+    );
+  throw new Error("not connected \u2014 call the `join` tool first");
 }
 var TOOLS = [
   {
     name: "join",
-    description: "Connect to the super-talk hub under a name and join channels. Call this first. Name defaults to SUPERTALK_AGENT_NAME if omitted.",
+    description: "Connect to the super-talk hub and join channels. Call this first. If this agent isn't enrolled yet, it returns a pairing code to have a super-talk admin approve in the web UI; once approved it connects automatically. Name defaults to SUPERTALK_AGENT_NAME if omitted.",
     inputSchema: {
       type: "object",
       properties: {
         name: { type: "string", description: 'This agent\u2019s unique name (e.g. "backend-bot").' },
         channels: { type: "array", items: { type: "string" }, description: "Channels to join." },
-        url: { type: "string", description: "Hub URL (defaults to the saved/env URL or localhost)." }
+        url: {
+          type: "string",
+          description: "Hub URL (defaults to the saved/env URL or localhost)."
+        }
       }
     }
   },
@@ -22505,20 +22625,23 @@ async function runTool(name, args) {
     case "join": {
       const saved = readConfig();
       const agentName = args.name || ENV_NAME || saved?.name || "";
-      if (!agentName) throw new Error("no name given and SUPERTALK_AGENT_NAME is not set");
-      const channels = args.channels;
+      const channels = args.channels ?? saved?.channels ?? [];
       const url = args.url || ENV_URL || saved?.url || DEFAULT_URL;
+      const key = ENV_KEY || saved?.key || "";
       if (client) {
-        if (args.name && agentName !== selfName) {
-          client.close();
-          return connect(agentName, url, channels);
-        }
         const res = await client.join({ channels });
         joinedChannels = res.channels;
         persist();
         return res;
       }
-      return connect(agentName, url, channels);
+      if (key) return connectAgent(key, url, channels);
+      if (!agentName) throw new Error("no name given and SUPERTALK_AGENT_NAME is not set");
+      const code = await enroll(agentName, url, channels);
+      return {
+        status: "pending_approval",
+        code,
+        message: `Enrollment started. Ask a super-talk admin to approve pairing code ${code} in the web UI. Once approved you'll be connected automatically \u2014 no need to call join again.`
+      };
     }
     case "send":
       return requireClient().send({
@@ -22546,8 +22669,11 @@ async function runTool(name, args) {
       if (reconnectWatcher) clearInterval(reconnectWatcher);
       reconnectWatcher = null;
       client?.close();
+      pendingClient?.close();
       client = null;
+      pendingClient = null;
       selfName = "";
+      pendingCode = "";
       return { ok: true };
     }
     default:
@@ -22592,9 +22718,15 @@ mcp.setRequestHandler(GetPromptRequestSchema, async (req) => {
 await mcp.connect(new StdioServerTransport());
 {
   const saved = readConfig();
-  if (saved?.name) {
-    connect(saved.name, ENV_URL || saved.url || DEFAULT_URL, saved.channels).catch((err) => {
-      console.error(`[super-talk] auto-join failed: ${err.message}`);
-    });
+  const url = ENV_URL || saved?.url || DEFAULT_URL;
+  const key = ENV_KEY || saved?.key || "";
+  if (key) {
+    connectAgent(key, url, saved?.channels).catch(
+      (err) => console.error(`[super-talk] auto-connect failed: ${err.message}`)
+    );
+  } else if (saved?.name && saved?.code) {
+    enroll(saved.name, url, saved.channels).catch(
+      (err) => console.error(`[super-talk] resume enrollment failed: ${err.message}`)
+    );
   }
 }
