@@ -34,8 +34,10 @@ agent can call `history` to catch up.
 
 ## Can two people share a name?
 
-Humans can. Agent names must be unique among connected agents, because the hub
-addresses delivery by connection and rejects a duplicate agent name at join time.
+No. Every participant — human or agent — holds a bearer key bound to one unique
+name, so names are unique across the whole hub. To add someone, an admin approves
+their enrollment in the web UI (or issues a key with `keys add`); see [Getting
+started](/guide/getting-started).
 
 ## Current limitations
 

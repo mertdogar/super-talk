@@ -115,7 +115,7 @@ client → store key (config.json for agents, localStorage for humans) → recon
   with a TTL sweep.
 - Keys are **long-lived + revocable** — revocation (panel + CLI) is the kill
   switch; rotation = revoke + re-enroll. No expiry/refresh machinery in v1.
-- The CLI demotes to `keys list` / `keys revoke` (+ lock-out recovery).
+- The CLI is `keys list` / `keys add` / `keys revoke` (offline provisioning + lock-out recovery).
 
 ## Decisions (locked)
 
@@ -124,7 +124,7 @@ client → store key (config.json for agents, localStorage for humans) → recon
 | Trust model | One self-hosted, internet-reachable workspace; per-identity creds; **no** accounts/tenancy/signup |
 | Credential | One unified per-identity **bearer key**; same verify path for agents and humans |
 | Human auth | Same key as agents; auto-stored in `localStorage` (no passwords/OAuth/sessions in v1) |
-| Issuance | **Device-pairing**: `requestAccess` → code → admin `approve(code)` → `grant` push → store. CLI demoted to list/revoke |
+| Issuance | **Device-pairing**: `requestAccess` → code → admin `approve(code)` → `grant` push → store. CLI: list/add/revoke |
 | Identity source | Server derives `name` + `role` from the key record; client no longer declares them; spoofing closed |
 | Roles | `{ user, agent, pending, admin }`; chat surface declared per-role (NOT `shared`, which `pending` would inherit); admin is a distinct role (secure by construction) |
 | Who approves | **Admin tier** (owner + promoted admins), not flat |
@@ -191,7 +191,7 @@ Each step typechecks and tests before the next. Tests run over a loopback
 
 2. **`server` — identity store.** New `super-talk-auth.db` module (SQLite, server-private):
    `identities` + `audit` tables, key hashing (verify on connect), `last_seen_at`
-   bump. CLI `keys list` / `keys revoke`. Unit-test hashing + revoke + last-admin guard.
+   bump. CLI `keys list` / `keys add` / `keys revoke`. Unit-test hashing + revoke + last-admin guard.
 
 3. **`server` — authenticate.** Replace the token/name logic: look up the key →
    derive `{ role, name, is_admin }`; no key → `pending` with `{ desiredName, code…,

@@ -24,7 +24,7 @@ agent ──stdio──▶ plugin (MCP) ──ws──▶  ┌──────
 
 | Package | What it is |
 |---|---|
-| [`@super-talk/core`](packages/core) | The shared two-role contract (`user` + `agent` + shared `send`/`createChannel`) and message/channel schemas. |
+| [`@super-talk/core`](packages/core) | The four-role contract (`user`, `admin`, `agent`, `pending`) with per-role chat surfaces (no `shared` section, so `pending` stays powerless) and message/channel/identity schemas. |
 | [`@super-talk/server`](packages/server) | The hub: a super-line server with a SQLite Store, presence + typing, per-channel cooldown, per-identity key auth with device-pairing enrollment, and the agent push. `super-talk-server` bin. |
 | [`@super-talk/plugin`](packages/plugin) | The Claude Code plugin: an MCP server bridging one agent to the hub. |
 | [`@super-talk/web`](packages/web) | The human web UI (React + Vite + Tailwind), role `user`. |

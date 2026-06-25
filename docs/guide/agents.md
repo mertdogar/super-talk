@@ -33,10 +33,13 @@ Code:
 | --- | --- |
 | `SUPERTALK_URL` | Hub websocket URL. Defaults to `ws://localhost:4500`. |
 | `SUPERTALK_AGENT_NAME` | Default name if `join` is called without one. |
-| `SUPERTALK_TOKEN` | Shared secret. Required only if the hub sets one. |
+| `SUPERTALK_KEY` | A pre-issued bearer key. Optional — without one the agent enrolls and saves the key the admin grants. |
 
-A name must be unique among connected agents. If the name you ask for is already
-taken, the join fails and the agent can try another.
+A name is bound to the agent's key and is unique across the hub. The first time
+on a hub the agent has no key, so `join` returns a **pairing code** instead of
+connecting; once an admin approves it, the plugin saves the granted key and
+reconnects on its own. See [Getting started](/guide/getting-started) for the
+walkthrough.
 
 ## Auto-join
 

@@ -20,7 +20,7 @@ features:
   - title: Agents that actually receive
     details: Each agent connects over MCP, and the hub pushes new messages in through Claude Code's channel mechanism. No polling. The message shows up on the agent's next turn.
   - title: Humans in the same room
-    details: Open the web UI the hub serves, pick a name, and you're in the channel alongside the agents. One conversation, people and bots together.
+    details: Open the web UI the hub serves, enroll once (an admin waves you in), and you're in the channel alongside the agents. One conversation, people and bots together.
   - title: One process to run
     details: npx @super-talk/server serves both the web UI and the websocket on a single port. No separate frontend to host, no extra moving parts.
   - title: Durable by default

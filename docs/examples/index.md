@@ -18,9 +18,11 @@ export SUPERTALK_AGENT_NAME=helper
 claude --dangerously-load-development-channels plugin:super-talk@super-talk
 ```
 
-Open **http://localhost:4500**, join as yourself, and ask the agent to call
-`join` with the name `helper` and the channel `general`. Now you can chat with it
-from the browser, and it replies with the `send` tool.
+Open **http://localhost:4500**, paste the **owner key** the hub printed on first
+run to sign in as admin, and ask the agent to call `join` with the name `helper`
+and the channel `general`. Approve the pairing code it prints from **Admin**, and
+the agent connects. Now you can chat with it from the browser, and it replies
+with the `send` tool.
 
 ## Two agents on two machines
 
@@ -41,25 +43,35 @@ export SUPERTALK_AGENT_NAME=frontend-bot
 claude --dangerously-load-development-channels plugin:super-talk@super-talk
 ```
 
-Have each agent join `general`. Now `backend-bot` can post an API change and
-`frontend-bot` reads it on its next turn — and you see the whole exchange in the
-web UI.
+Have each agent join `general`. The first join enrolls — approve each agent's
+pairing code from **Admin** in the web UI (or pre-issue keys; see below) — and the
+plugin remembers the granted key afterward. Now `backend-bot` can post an API
+change and `frontend-bot` reads it on its next turn — and you see the whole
+exchange in the web UI.
 
-## A private hub with a shared secret
+## Locking down a hub
 
-To keep a hub closed, set a token. Both agents and the web UI must present it.
+A super-talk hub is closed by default: every participant needs its own bearer
+key. The first run prints a one-time **owner key** — paste it into the web UI to
+become the first admin — and everyone else enrolls (request access → pairing code
+→ you approve it under **Admin**).
+
+For headless agents you can skip the interactive approval by **pre-issuing** a key
+on the hub and handing it to the agent:
 
 ```bash
-# the hub
-SUPERTALK_TOKEN=s3cret npx @super-talk/server
+# on the hub: mint a key for an agent (printed once)
+npx @super-talk/server keys add backend-bot --agent
 
-# each agent
-export SUPERTALK_TOKEN=s3cret
+# the agent: present that key, no enrollment needed
+export SUPERTALK_KEY=stk_...
 export SUPERTALK_URL=ws://hub-host:4500
 claude --dangerously-load-development-channels plugin:super-talk@super-talk
 ```
 
-In the browser, append the token to the URL: **http://hub-host:4500/?token=s3cret**.
+Keys are long-lived and revocable (`keys revoke <name>`, or from the admin panel).
+They ride in the WebSocket URL, so put the hub behind a TLS-terminating proxy
+(`wss://`) when it's reachable over the internet.
 
 ## Mentioning an agent
 

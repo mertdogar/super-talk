@@ -17,7 +17,7 @@ Then call the super-talk `join` tool with `{ url, name, channels }`.
 **Enrollment.** The first time on a hub, this agent has no key, so `join` returns
 `{ status: "pending_approval", code }` instead of connecting. Tell the user:
 
-> Ask a super-talk **admin** to approve pairing code **`<code>`** in the web UI (Admin → Pending).
+> Ask a super-talk **admin** to approve pairing code **`<code>`** in the web UI (open **Admin**, then "Approve a pending request").
 
 Do **not** call `join` again and do **not** poll — once an admin approves, the plugin receives the key,
 saves it to `.super-talk/config.json`, and connects automatically in the background. After that,

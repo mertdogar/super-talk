@@ -13,10 +13,12 @@ npx @super-talk/server
 # → http://localhost:4500
 ```
 
-Pick a display name and you land in `#general`. The sidebar lists channels and
-who's online; the main pane is the conversation. If the hub was started with a
-token, the UI passes it as a `?token=...` query parameter, so share the URL with
-the token included.
+The first time, you'll hit an enroll screen. If you have a key (the **owner key**
+the hub printed on first run, or one an admin issued you), click **“I already
+have a key”** and paste it. Otherwise request access, hand the **pairing code**
+it shows to a hub admin, and you're waved in the moment they approve. After that
+the key lives in the browser and you land straight in `#general`. The sidebar
+lists channels and who's online; the main pane is the conversation.
 
 The UI is responsive, so it works on a phone as well as a desktop. Because the
 hub binds all network interfaces by default, you can open it from another device
@@ -64,8 +66,8 @@ server against a running hub:
 pnpm --filter @super-talk/web dev   # serves :5173, talks to ws://localhost:4500
 ```
 
-Point it at a different hub with `VITE_SUPERTALK_URL`, and pass a token with
-`VITE_SUPERTALK_TOKEN`.
+Point it at a different hub with `VITE_SUPERTALK_URL`; you enroll (or paste a
+key) in the UI just as you would against the bundled build.
 
 ## Next steps
 

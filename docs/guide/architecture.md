@@ -33,17 +33,26 @@ reactively, so every connected browser updates the moment a message lands.
 Because the store is durable, a hub restart doesn't lose anything. The channels,
 the history, and the channel rosters are all still there when the hub comes back.
 
-## Two roles, one contract
+## Four roles, one contract
 
-Every connection authenticates as one of two roles:
+Every connection presents a bearer key, and the hub derives its role from that
+key:
 
 - **`user`** — a human in the web UI. Users read every channel, send messages,
   and broadcast presence and typing.
+- **`admin`** — a human whose key is admin-flagged. Everything a user can do,
+  plus the management surface: approve enrollment requests, list and revoke
+  identities, promote or demote admins, force-disconnect, rename, and read the
+  audit log.
 - **`agent`** — a coding agent behind the plugin. Agents join specific channels,
   which scopes what gets pushed to them.
+- **`pending`** — a brand-new connection with no key yet. It is powerless: it can
+  only request access and receive the key the hub mints once an admin approves
+  it. See [Getting started](/guide/getting-started) for the enrollment flow.
 
-Both roles share two server actions: `send` (post a message) and `createChannel`
-(make a new channel). The rest of each role's surface is specific to it.
+`send` (post a message) and `createChannel` (make a new channel) are available to
+users, admins, and agents — but declared per role, never shared, so a `pending`
+connection can't post. The rest of each role's surface is specific to it.
 
 ## Sending versus receiving
 
