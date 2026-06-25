@@ -25,6 +25,13 @@ it("round-trips name, channels, url", () => {
   });
 });
 
+it("round-trips the granted key and an in-flight pairing code", () => {
+  writeConfig({ name: "ada", channels: [], url: "ws://h", key: "stk_abc" }, dir);
+  expect(readConfig(dir)).toEqual({ name: "ada", channels: [], url: "ws://h", key: "stk_abc" });
+  writeConfig({ name: "ada", channels: [], url: "ws://h", code: "WXYZ-1234" }, dir);
+  expect(readConfig(dir)).toEqual({ name: "ada", channels: [], url: "ws://h", code: "WXYZ-1234" });
+});
+
 it("returns null on malformed json", () => {
   writeFileSync(join(dir, "config.json"), "{ not json");
   expect(readConfig(dir)).toBeNull();

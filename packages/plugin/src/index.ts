@@ -14,7 +14,7 @@ import { channelNotificationFor } from "./delivery.js";
 
 const ENV_URL = process.env.SUPERTALK_URL || "";
 const ENV_NAME = process.env.SUPERTALK_AGENT_NAME || "";
-const TOKEN = process.env.SUPERTALK_TOKEN || "";
+const ENV_KEY = process.env.SUPERTALK_KEY || "";
 const DEFAULT_URL = "ws://localhost:4500";
 
 const PRIMER = `You are connected to super-talk, shared channels where AI agents and humans collaborate.
@@ -39,8 +39,12 @@ const mcp = new Server(
 );
 
 let client: SuperLineClient<typeof api, "agent"> | null = null;
+let pendingClient: SuperLineClient<typeof api, "pending"> | null = null;
 let selfName = "";
 let selfUrl = "";
+let selfKey = "";
+let pendingCode = "";
+let enrollChannels: string[] = [];
 let joinedChannels: string[] = [];
 let reconnectWatcher: ReturnType<typeof setInterval> | null = null;
 
@@ -54,23 +58,60 @@ function deliver(d: Delivery) {
 }
 
 function persist() {
-  writeConfig({ name: selfName, channels: joinedChannels, url: selfUrl });
+  writeConfig({ name: selfName, channels: joinedChannels, url: selfUrl, key: selfKey });
 }
 
-async function connect(name: string, url: string, channels?: string[]) {
-  selfName = name;
+/** Connect (or reconnect) as an authenticated agent using a granted bearer key. */
+async function connectAgent(key: string, url: string, channels?: string[]) {
   selfUrl = url;
+  selfKey = key;
   client = createSuperLineClient(api, {
     transport: webSocketClientTransport({ url }),
     role: "agent",
-    params: { name, ...(TOKEN ? { token: TOKEN } : {}) },
+    params: { key },
   });
   client.on("message", deliver);
   const res = await client.join({ channels });
+  selfName = res.name; // identity is the key's — the server tells us our name
   joinedChannels = res.channels;
   persist();
   watchReconnect();
   return res;
+}
+
+/** Begin enrollment: open a `pending` connection, request a pairing code, and wait (in the
+ * background) for an admin to approve it. Resolves with the code for the human to get approved. */
+async function enroll(desiredName: string, url: string, channels: string[]): Promise<string> {
+  selfName = desiredName;
+  selfUrl = url;
+  enrollChannels = channels;
+  pendingClient?.close();
+  pendingClient = createSuperLineClient(api, {
+    transport: webSocketClientTransport({ url }),
+    role: "pending",
+    params: { name: desiredName, kind: "agent" },
+  });
+  pendingClient.on("grant", onGrant);
+  // reuse a saved code so a restart re-attaches to the same request instead of spawning a new one
+  const saved = readConfig();
+  const resume = saved?.code && saved.name === desiredName ? saved.code : undefined;
+  const { code } = await pendingClient.requestAccess({ desiredName, kind: "agent", code: resume });
+  pendingCode = code;
+  writeConfig({ name: desiredName, channels, url, code });
+  console.error(`[super-talk] enrollment pending — pairing code: ${code}`);
+  return code;
+}
+
+/** Admin approved: swap the pending socket for an authenticated agent connection and persist the key. */
+function onGrant(grant: { key: string; name: string; kind: string }): void {
+  pendingClient?.close();
+  pendingClient = null;
+  pendingCode = "";
+  connectAgent(grant.key, selfUrl, enrollChannels)
+    .then(() => console.error(`[super-talk] enrollment approved — connected as "${grant.name}".`))
+    .catch((err) =>
+      console.error(`[super-talk] connect after grant failed: ${(err as Error).message}`),
+    );
 }
 
 // super-line replays topics on reconnect but NOT requests, so a dropped+restored socket (e.g. the
@@ -92,22 +133,30 @@ function watchReconnect() {
 }
 
 function requireClient(): SuperLineClient<typeof api, "agent"> {
-  if (!client) throw new Error("not connected — call the `join` tool first");
-  return client;
+  if (client) return client;
+  if (pendingClient)
+    throw new Error(
+      `enrollment pending — ask a super-talk admin to approve pairing code ${pendingCode} in the web UI`,
+    );
+  throw new Error("not connected — call the `join` tool first");
 }
 
 const TOOLS = [
   {
     name: "join",
     description:
-      "Connect to the super-talk hub under a name and join channels. Call this first. " +
-      "Name defaults to SUPERTALK_AGENT_NAME if omitted.",
+      "Connect to the super-talk hub and join channels. Call this first. If this agent isn't " +
+      "enrolled yet, it returns a pairing code to have a super-talk admin approve in the web UI; " +
+      "once approved it connects automatically. Name defaults to SUPERTALK_AGENT_NAME if omitted.",
     inputSchema: {
       type: "object",
       properties: {
         name: { type: "string", description: 'This agent’s unique name (e.g. "backend-bot").' },
         channels: { type: "array", items: { type: "string" }, description: "Channels to join." },
-        url: { type: "string", description: "Hub URL (defaults to the saved/env URL or localhost)." },
+        url: {
+          type: "string",
+          description: "Hub URL (defaults to the saved/env URL or localhost).",
+        },
       },
     },
   },
@@ -187,21 +236,28 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<unk
     case "join": {
       const saved = readConfig();
       const agentName = (args.name as string) || ENV_NAME || saved?.name || "";
-      if (!agentName) throw new Error("no name given and SUPERTALK_AGENT_NAME is not set");
-      const channels = args.channels as string[] | undefined;
+      const channels = (args.channels as string[] | undefined) ?? saved?.channels ?? [];
       const url = (args.url as string) || ENV_URL || saved?.url || DEFAULT_URL;
+      const key = ENV_KEY || saved?.key || "";
       if (client) {
-        // identity is bound at connect time — an explicit, different name means reconnect, not re-join
-        if (args.name && agentName !== selfName) {
-          client.close();
-          return connect(agentName, url, channels);
-        }
+        // already an authenticated agent — just (re)join the requested channels
         const res = await client.join({ channels });
         joinedChannels = res.channels;
         persist();
         return res;
       }
-      return connect(agentName, url, channels);
+      if (key) return connectAgent(key, url, channels);
+      // no key yet → enroll. Returns a pairing code; an admin approves it, then we connect in the
+      // background (no agent turn needed) and `send`/`who`/etc. start working.
+      if (!agentName) throw new Error("no name given and SUPERTALK_AGENT_NAME is not set");
+      const code = await enroll(agentName, url, channels);
+      return {
+        status: "pending_approval",
+        code,
+        message:
+          `Enrollment started. Ask a super-talk admin to approve pairing code ${code} in the ` +
+          `web UI. Once approved you'll be connected automatically — no need to call join again.`,
+      };
     }
     case "send":
       return requireClient().send({
@@ -226,12 +282,15 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<unk
       return res;
     }
     case "disconnect": {
-      // session-scoped: drop the connection but keep the config so next start auto-joins
+      // session-scoped: drop the connection but keep the config so next start auto-connects
       if (reconnectWatcher) clearInterval(reconnectWatcher);
       reconnectWatcher = null;
       client?.close();
+      pendingClient?.close();
       client = null;
+      pendingClient = null;
       selfName = "";
+      pendingCode = "";
       return { ok: true };
     }
     default:
@@ -281,14 +340,19 @@ mcp.setRequestHandler(GetPromptRequestSchema, async (req) => {
 
 await mcp.connect(new StdioServerTransport());
 
-// Auto-join: if a previous session saved a config, reconnect silently (no hello). Fire-and-forget
-// so startup never blocks; graceful on failure (hub down or name already taken) — the join tool
-// can still be used to (re)connect with another name.
+// Auto-connect: a saved key reconnects silently; a saved code (interrupted mid-enrollment) re-attaches
+// to the same pairing request. Fire-and-forget so startup never blocks; graceful on failure.
 {
   const saved = readConfig();
-  if (saved?.name) {
-    connect(saved.name, ENV_URL || saved.url || DEFAULT_URL, saved.channels).catch((err) => {
-      console.error(`[super-talk] auto-join failed: ${(err as Error).message}`);
-    });
+  const url = ENV_URL || saved?.url || DEFAULT_URL;
+  const key = ENV_KEY || saved?.key || "";
+  if (key) {
+    connectAgent(key, url, saved?.channels).catch((err) =>
+      console.error(`[super-talk] auto-connect failed: ${(err as Error).message}`),
+    );
+  } else if (saved?.name && saved?.code) {
+    enroll(saved.name, url, saved.channels).catch((err) =>
+      console.error(`[super-talk] resume enrollment failed: ${(err as Error).message}`),
+    );
   }
 }
