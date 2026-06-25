@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { AdminPanel } from "@/components/admin-panel";
 import { ChannelView } from "@/components/channel-view";
 import { Sidebar } from "@/components/sidebar";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -6,12 +7,21 @@ import type { ChannelsDoc } from "@/contract";
 import { useReadState } from "@/hooks/use-read-state";
 import { useRequest, useResource, useSubscription } from "@/lib/superline";
 
-export function Shell({ me, onSignOut }: { me: string; onSignOut: () => void }): React.JSX.Element {
+export function Shell({
+  me,
+  isAdmin,
+  onSignOut,
+}: {
+  me: string;
+  isAdmin: boolean;
+  onSignOut: () => void;
+}): React.JSX.Element {
   const { data: channelsDoc } = useResource<ChannelsDoc>("chat", "channels");
   const channels = useMemo(() => channelsDoc?.channels ?? [], [channelsDoc]);
 
   const [activeId, setActiveId] = useState("general");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const { lastRead, markRead } = useReadState(me);
 
   // selecting a channel also dismisses the mobile drawer
@@ -53,6 +63,8 @@ export function Shell({ me, onSignOut }: { me: string; onSignOut: () => void }):
     onSelect: selectChannel,
     lastRead,
     onSignOut,
+    isAdmin,
+    onOpenAdmin: () => setAdminOpen(true),
   };
 
   return (
@@ -76,6 +88,8 @@ export function Shell({ me, onSignOut }: { me: string; onSignOut: () => void }):
         markRead={markRead}
         onOpenMenu={() => setDrawerOpen(true)}
       />
+
+      {isAdmin && <AdminPanel open={adminOpen} onOpenChange={setAdminOpen} me={me} />}
     </div>
   );
 }

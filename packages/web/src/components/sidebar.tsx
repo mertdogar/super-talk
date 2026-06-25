@@ -1,4 +1,4 @@
-import { Hash, LogOut, MessageSquare } from "lucide-react";
+import { Hash, LogOut, MessageSquare, UserCog } from "lucide-react";
 import { CreateChannelDialog } from "@/components/create-channel-dialog";
 import type { Channel, MessagesDoc } from "@/contract";
 import { useResource } from "@/lib/superline";
@@ -12,6 +12,8 @@ interface SidebarProps {
   onSelect: (id: string) => void;
   lastRead: Record<string, number>;
   onSignOut: () => void;
+  isAdmin?: boolean;
+  onOpenAdmin?: () => void;
   className?: string;
 }
 
@@ -23,6 +25,8 @@ export function Sidebar({
   onSelect,
   lastRead,
   onSignOut,
+  isAdmin,
+  onOpenAdmin,
   className,
 }: SidebarProps): React.JSX.Element {
   return (
@@ -37,14 +41,26 @@ export function Sidebar({
           <MessageSquare className="h-5 w-5" />
           super-talk
         </span>
-        <button
-          onClick={onSignOut}
-          title="Sign out"
-          aria-label="Sign out"
-          className="grid h-11 w-11 place-items-center rounded text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground md:h-7 md:w-7"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {isAdmin && (
+            <button
+              onClick={onOpenAdmin}
+              title="Admin"
+              aria-label="Admin"
+              className="grid h-11 w-11 place-items-center rounded text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground md:h-7 md:w-7"
+            >
+              <UserCog className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            onClick={onSignOut}
+            title="Sign out"
+            aria-label="Sign out"
+            className="grid h-11 w-11 place-items-center rounded text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground md:h-7 md:w-7"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto py-3">

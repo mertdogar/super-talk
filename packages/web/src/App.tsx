@@ -1,27 +1,31 @@
-import { useState } from 'react'
-import { JoinScreen } from '@/components/join-screen'
-import { Workspace } from '@/components/workspace'
+import { useState } from "react";
+import { EnrollScreen } from "@/components/enroll-screen";
+import { Workspace } from "@/components/workspace";
 
-const NAME_KEY = 'slack:name'
+const KEY_KEY = "super-talk:key";
 
-// initial identity: ?name=ada in the URL (handy for opening two windows side by side) or the last
-// name saved to localStorage
-function initialName(): string | null {
-  const fromUrl = new URLSearchParams(location.search).get('name')?.trim()
-  return fromUrl || localStorage.getItem(NAME_KEY)
+// The bearer key is the identity. Source it from ?key=… in the URL (handy for the bootstrap owner
+// key or opening a second window) or from localStorage.
+function initialKey(): string | null {
+  const fromUrl = new URLSearchParams(location.search).get("key")?.trim();
+  return fromUrl || localStorage.getItem(KEY_KEY);
 }
 
 export function App(): React.JSX.Element {
-  const [name, setName] = useState<string | null>(initialName)
+  const [authKey, setAuthKey] = useState<string | null>(initialKey);
 
-  const signIn = (n: string) => {
-    localStorage.setItem(NAME_KEY, n)
-    setName(n)
-  }
+  const onEnrolled = (key: string) => {
+    localStorage.setItem(KEY_KEY, key);
+    setAuthKey(key);
+  };
   const signOut = () => {
-    localStorage.removeItem(NAME_KEY)
-    setName(null)
-  }
+    localStorage.removeItem(KEY_KEY);
+    setAuthKey(null);
+  };
 
-  return name ? <Workspace name={name} onSignOut={signOut} /> : <JoinScreen onJoin={signIn} />
+  return authKey ? (
+    <Workspace authKey={authKey} onSignOut={signOut} />
+  ) : (
+    <EnrollScreen onEnrolled={onEnrolled} />
+  );
 }
