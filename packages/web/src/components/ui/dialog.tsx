@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils'
 export const Dialog = DialogPrimitive.Root
 export const DialogTrigger = DialogPrimitive.Trigger
 export const DialogPortal = DialogPrimitive.Portal
-export const DialogClose = DialogPrimitive.Close
 
 export function DialogOverlay({
   className,

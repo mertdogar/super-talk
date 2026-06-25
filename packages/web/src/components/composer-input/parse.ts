@@ -24,11 +24,6 @@ export function findMentionTokens(text: string): ComposerMention[] {
   return mentions
 }
 
-/** Flatten `@[name](id)` tokens to a plain `@name` (for previews / empty checks). */
-export function flattenMentions(text: string): string {
-  return text.replace(MENTION_REGEX, (_m, name: string) => `@${name}`)
-}
-
 /** `media:42` → `media`; bare ids → `element`. Colors chips per vocabulary via `[data-kind]`. */
 export function mentionKind(id: string): string {
   const colon = id.indexOf(':')
